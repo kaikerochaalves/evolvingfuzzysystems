@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Jan 27 15:14:19 2025
+
+@author: Kaike Sa Teles Rocha Alves
+@email: kaikerochaalves@outlook.com
+"""
+
+"""
+This is the __init__.py file for the package evolvingfuzzysystems.
+It exposes the eFS models for easy import.
+"""
+
+from .eFS import ePL_KRLS_DISCO, ePL_plus, eMG, ePL, exTS, Simpl_eTS, eTS
+
+__all__ = ["ePL_KRLS_DISCO", "ePL_plus", "eMG", "ePL", "exTS", "Simpl_eTS", "eTS"]
+
+__version__ = "0.0.1"  # Update version as needed
