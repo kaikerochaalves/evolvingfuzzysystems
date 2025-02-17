@@ -11,6 +11,7 @@ import math
 import warnings
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # Importing libraries
 # Binomial cumulative distribution function
@@ -20,11 +21,47 @@ from scipy.stats.distributions import chi2
 
 class base():
     
+    def show_rules(self):
+        rules = []
+        for i in self.parameters.index:
+            rule = f"Rule {i}"
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                rule = f'{rule} - {self.parameters.loc[i,"Center"][j].item():.2f} ({self.sigma:.2f})'
+            print(rule)
+            rules.append(rule)
+        
+        return rules
+    
+    def plot_gaussian(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+        
+        # Iterate through rules and attributes
+        for i in self.parameters.index:
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                
+                # Generate x values for smooth curve
+                x_vals = np.linspace(self.parameters.loc[i,"Center"][j] - 3*self.sigma, self.parameters.loc[i,"Center"][j] + 3*self.sigma, num_points)
+                y_vals = np.exp(-((x_vals - self.parameters.loc[i,"Center"][j])**2) / (2 * self.sigma**2))
+                
+                # Create and configure the plot
+                plt.figure(figsize=(19.20, 10.80))
+                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.sigma:.2f})')
+                plt.title(f'Rule {i} - Attribute {j}')
+                plt.xlabel('Values')
+                plt.ylabel('Membership')
+                plt.legend()
+                plt.grid(False)
+                
+                # Display the plot
+                plt.show()
+    
     def n_rules(self):
         return self.rules[-1]
     
     def output_training(self):
-        return self.OutputTrainingPhase
+        return self.y_pred_training
 
 class ePL_KRLS_DISCO(base):
     
@@ -55,7 +92,8 @@ class ePL_KRLS_DISCO(base):
         self.e_utility = e_utility
         
         # Parameters
-        self.parameters = pd.DataFrame(columns = ['center', 'dictionary', 'nu', 'P', 'Q', 'theta','arousal_index', 'utility', 'sum_lambda', 'time_creation', 'compatibility_measure', 'old_center', 'tau', 'lambda'])
+        self.parameters = pd.DataFrame(columns = ['Center', 'dictionary', 'nu', 'P', 'Q', 'Theta','arousal_index', 'utility', 'sum_lambda', 'time_creation', 'CompatibilityMeasure', 'old_Center', 'tau', 'lambda'])
+        self.parameters_list = []
         # Parameters used to calculate the utility measure
         self.epsilon = []
         self.eTil = [0.]
@@ -64,13 +102,11 @@ class ePL_KRLS_DISCO(base):
         # Evolution of the model rules
         self.rules = []
         # Computing the output in the training phase
-        self.OutputTrainingPhase = np.array([])
+        self.y_pred_training = None
         # Computing the residual square in the ttraining phase
-        self.ResidualTrainingPhase = np.array([])
+        self.ResidualTrainingPhase = None
         # Computing the output in the testing phase
-        self.OutputTestPhase = np.array([])
-        # Computing the residual square in the testing phase
-        self.ResidualTestPhase = np.array([])
+        self.y_pred_test = None
     
     def get_params(self, deep=True):
         return {
@@ -93,22 +129,26 @@ class ePL_KRLS_DISCO(base):
          
     def fit(self, X, y):
         
+        # Shape of X and y
+        X_shape = X.shape
+        y_shape = y.shape
+        
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y.shape) > 1 and y.shape[1] > 1:
+        if len(y_shape) > 1 and y_shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y.shape) > 1:
+        if len(y_shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X.shape[0] != y.shape[0]:
+        if X_shape[0] != y_shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
@@ -126,11 +166,19 @@ class ePL_KRLS_DISCO(base):
                 "y contains incompatible values."
                 " Check y for non-numeric or infinity values"
             )
+            
+        # Preallocate space for the outputs for better performance
+        self.y_pred_training = np.zeros((y_shape))
+        self.ResidualTrainingPhase = np.zeros((y_shape))
+        
+        # Initialize outputs
+        self.y_pred_training[0,] = y[0]
+        self.ResidualTrainingPhase[0,] = 0.
         
         # Prepare the first input vector
         x = X[0,].reshape((1,-1)).T
         # Initialize the first rule
-        self.Initialize_First_Cluster(x, y[0])
+        self.NewRule(x, y[0], 1., None, True)
         
         for k in range(1, X.shape[0]):
             
@@ -138,42 +186,55 @@ class ePL_KRLS_DISCO(base):
             x = X[k,].reshape((1,-1)).T
             
             # Compute the compatibility measure and the arousal index for all rules
-            for i in self.parameters.index:
-                self.Compatibility_Measure(x, i)
-                self.Arousal_Index(i)
+            MinArousal, MaxCompatibility, MaxCompatibilityIdx = (np.inf, 0, 0)
+            for i in range(len(self.parameters_list)):
+                
+                # Update the compatibility measure and the respective arousal index (inside compatibility measure function)
+                self.CompatibilityMeasure(x, i)
+                
+                # Find the minimum arousal index
+                if self.parameters_list[i][6] < MinArousal:
+                    MinArousal = self.parameters_list[i][6]
             
-            # Find the minimum arousal index
-            MinIndexArousal = self.parameters['arousal_index'].astype('float64').idxmin()
+                # Find the maximum compatibility measure
+                if self.parameters_list[i][11] > MaxCompatibility:
+                    MaxCompatibility = self.parameters_list[i][11]
+                    MaxCompatibilityIdx = i
             
-            # Find the maximum compatibility measure
-            MaxIndexCompatibility = self.parameters['compatibility_measure'].astype('float64').idxmax()
-            
-            # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinIndexArousal, 'arousal_index'] > self.tau and self.ExcludedRule == 0 and self.epsilon != []:
-                self.Initialize_Cluster(x, y[k], k+1, MaxIndexCompatibility)
+            # Verify the needing to creating a new rule
+            if MinArousal > self.tau and self.ExcludedRule == 0 and self.epsilon != []:
+                # Create a new rule
+                self.NewRule(x, y[k], k+1, MaxCompatibilityIdx, False)
+                # Save the position of the created rule
+                MaxCompatibility = 1.
+                MaxCompatibilityIdx = len(self.parameters_list) - 1
+                
             else:
-                self.Rule_Update(x, y[k], MaxIndexCompatibility)
-                self.KRLS(x, y[k], MaxIndexCompatibility)
+                # Update the most compatible rule
+                self.UpdateRule(x, y[k], MaxCompatibilityIdx)
+                # Update the consequent parameters
+                self.KRLS(x, y[k], MaxCompatibilityIdx)
+            
+            # Update lambda values
             self.Lambda(x)
             
-            if self.parameters.shape[0] > 1:
-                self.Utility_Measure(X[k,], k+1)
-            self.rules.append(self.parameters.shape[0])
-            
-            # Finding the maximum compatibility measure
-            MaxIndexCompatibility = self.parameters['compatibility_measure'].astype('float64').idxmax()
+            # Check wheather it is necessary to remove a rule
+            if len(self.parameters_list) > 1:
+                self.UtilityMeasure(X[k,], k+1)
+                
+            # Update the number of rules at the current iteration
+            self.rules.append(len(self.parameters_list))
             
             # Computing the output
-            Output = 0
-            for ni in range(self.parameters.loc[MaxIndexCompatibility, 'dictionary'].shape[1]):
-                Output = Output + self.parameters.loc[MaxIndexCompatibility, 'theta'][ni] * self.Kernel_Gaussiano(self.parameters.loc[MaxIndexCompatibility, 'dictionary'][:,ni].reshape(-1,1), x)
-                
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
+            Output = self.parameters_list[MaxCompatibilityIdx][5].T @ self.GaussianKernel(self.parameters_list[MaxCompatibilityIdx][1], x)
             
-            # Updating epsilon and e_til
-            quociente = math.exp(-0.8 * self.eTil[-1] - abs(Output - y[k]))
+            # Store the results
+            self.y_pred_training[k,] = Output.item()
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase[k,] = residual ** 2
             
+            # Update epsilon and e_til
+            quociente = math.exp(-0.8 * self.eTil[-1] - residual)
             if quociente == 0:
                 self.epsilon.append(max(self.epsilon))
             else:
@@ -187,11 +248,14 @@ class ePL_KRLS_DISCO(base):
                     self.epsilon.append(epsilon)
             
             self.eTil.append(0.8 * self.eTil[-1] + abs(Output - y[k]))
+            
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'dictionary', 'nu', 'P', 'Q', 'Theta','arousal_index', 'utility', 'sum_lambda', 'time_creation', 'CompatibilityMeasure', 'old_Center', 'tau', 'lambda', 'lambda'])
     
     def evolve(self, X, y):
         
         # Be sure that X is with a correct shape
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'center'].shape[0])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
@@ -237,42 +301,56 @@ class ePL_KRLS_DISCO(base):
             x = X[k,].reshape((1,-1)).T
             
             # Compute the compatibility measure and the arousal index for all rules
-            for i in self.parameters.index:
-                self.Compatibility_Measure(x, i)
-                self.Arousal_Index(i)
+            MinArousal, MaxCompatibility, MaxCompatibilityIdx = (np.inf, 0, 0)
+            for i in range(len(self.parameters_list)):
+                
+                # Update the compatibility measure and the respective arousal index (inside compatibility measure function)
+                self.CompatibilityMeasure(x, i)
+                
+                # Find the minimum arousal index
+                if self.parameters_list[i][6] < MinArousal:
+                    MinArousal = self.parameters_list[i][6]
             
-            # Find the minimum arousal index
-            MinIndexArousal = self.parameters['arousal_index'].astype('float64').idxmin()
+                # Find the maximum compatibility measure
+                if self.parameters_list[i][11] > MaxCompatibility:
+                    MaxCompatibility = self.parameters_list[i][11]
+                    MaxCompatibilityIdx = i
             
-            # Find the maximum compatibility measure
-            MaxIndexCompatibility = self.parameters['compatibility_measure'].astype('float64').idxmax()
-            
-            # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinIndexArousal, 'arousal_index'] > self.tau and self.ExcludedRule == 0 and self.epsilon != []:
-                self.Initialize_Cluster(x, y[k], k+1, MaxIndexCompatibility)
+            # Verify the needing to creating a new rule
+            if MinArousal > self.tau and self.ExcludedRule == 0 and self.epsilon != []:
+                # Create a new rule
+                self.NewRule(x, y[k], k+1, MaxCompatibilityIdx, False)
+                # Save the position of the created rule
+                MaxCompatibility = 1.
+                MaxCompatibilityIdx = len(self.parameters_list) - 1
+                
             else:
-                self.Rule_Update(x, y[k], MaxIndexCompatibility)
-                self.KRLS(x, y[k], MaxIndexCompatibility)
+                # Update the most compatible rule
+                self.UpdateRule(x, y[k], MaxCompatibilityIdx)
+                # Update the consequent parameters
+                self.KRLS(x, y[k], MaxCompatibilityIdx)
+            
+            # Update lambda values
             self.Lambda(x)
             
-            if self.parameters.shape[0] > 1:
-                self.Utility_Measure(X[k,], k+1)
-            self.rules.append(self.parameters.shape[0])
-            
-            # Finding the maximum compatibility measure
-            MaxIndexCompatibility = self.parameters['compatibility_measure'].astype('float64').idxmax()
+            # Check wheather it is necessary to remove a rule
+            if len(self.parameters_list) > 1:
+                self.UtilityMeasure(X[k,], k+1)
+                
+            # Update the number of rules at the current iteration
+            self.rules.append(len(self.parameters_list))
             
             # Computing the output
-            Output = 0
-            for ni in range(self.parameters.loc[MaxIndexCompatibility, 'dictionary'].shape[1]):
-                Output = Output + self.parameters.loc[MaxIndexCompatibility, 'theta'][ni] * self.Kernel_Gaussiano(self.parameters.loc[MaxIndexCompatibility, 'dictionary'][:,ni].reshape(-1,1), x)
-                
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
+            Output = self.parameters_list[MaxCompatibilityIdx][5].T @ self.GaussianKernel(self.parameters_list[MaxCompatibilityIdx][1], x)
             
-            # Updating epsilon and e_til
-            quociente = math.exp(-0.8 * self.eTil[-1] - abs(Output - y[k]))
+            # Store the prediction
+            self.y_pred_training = np.append(self.y_pred_training, Output)
+            # Compute the error
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, residual**2)
             
+            # Update epsilon and e_til
+            quociente = math.exp(-0.8 * self.eTil[-1] - residual)
             if quociente == 0:
                 self.epsilon.append(max(self.epsilon))
             else:
@@ -287,10 +365,16 @@ class ePL_KRLS_DISCO(base):
             
             self.eTil.append(0.8 * self.eTil[-1] + abs(Output - y[k]))
             
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'dictionary', 'nu', 'P', 'Q', 'Theta','arousal_index', 'utility', 'sum_lambda', 'time_creation', 'CompatibilityMeasure', 'old_Center', 'tau', 'lambda', 'lambda'])
+            
     def predict(self, X):
         
+        # Shape of X
+        X_shape = X.shape
+        
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
             
         # Check if the inputs contain valid numbers
@@ -300,204 +384,214 @@ class ePL_KRLS_DISCO(base):
                 " Check X for non-numeric or infinity values"
             )
             
-        for k in range(X.shape[0]):
+        # Preallocate space for the outputs for better performance
+        self.y_pred_test = np.zeros((X_shape[0]))
+            
+        for k in range(X_shape[0]):
             
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
             
-            # Computing the compatibility measure
-            for i in self.parameters.index:
-                self.Compatibility_Measure(x, i)
+            # Compute the compatibility measure and the arousal index for all rules
+            MaxCompatibility, MaxCompatibilityIdx = (0, 0)
+            for i in range(len(self.parameters_list)):
                 
-            # Finding the maximum compatibility measure
-            MaxIndexCompatibility = self.parameters['compatibility_measure'].astype('float64').idxmax()
+                # Update the compatibility measure and the respective arousal index (inside compatibility measure function)
+                self.CompatibilityMeasure(x, i)
+                            
+                # Find the maximum compatibility measure
+                if self.parameters_list[i][11] > MaxCompatibility:
+                    MaxCompatibility = self.parameters_list[i][11]
+                    MaxCompatibilityIdx = i
             
             # Computing the output
-            Output = 0
-            for ni in range(self.parameters.loc[MaxIndexCompatibility, 'dictionary'].shape[1]):
-                Output = Output + self.parameters.loc[MaxIndexCompatibility, 'theta'][ni] * self.Kernel_Gaussiano(self.parameters.loc[MaxIndexCompatibility, 'dictionary'][:,ni].reshape(-1,1), x)
-            self.OutputTestPhase = np.append(self.OutputTestPhase, Output)
+            Output = self.parameters_list[MaxCompatibilityIdx][5].T @ self.GaussianKernel(self.parameters_list[MaxCompatibilityIdx][1], x)
             
-        return self.OutputTestPhase
+            # Store the results
+            self.y_pred_test[k,] = Output.item()
         
-    def Initialize_First_Cluster(self, x, y):
-        kernel_value = self.Kernel_Gaussiano(x, x)
-        Q = np.linalg.inv(np.ones((1,1)) * (self.lambda1 + kernel_value))
-        theta = Q*y
-        self.parameters = pd.DataFrame([{
-            'center': x,
-            'dictionary': x,
-            'nu': float(self.sigma),
-            'P': np.ones((1,1)),
-            'Q': Q,
-            'theta': theta,
-            'arousal_index': 0.,
-            'utility': 1.,
-            'sum_lambda': 0.,
-            'num_observations': 1.,
-            'time_creation': 1.,
-            'compatibility_measure': 1.,
-            'old_center': np.zeros((x.shape[0],1)),
-            'tau': 1.
-        }])
-        self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, y)
-        self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,0.)
-    
-    def Initialize_Cluster(self, x, y, k, i):
-        kernel_value = self.Kernel_Gaussiano(x, x)
-        Q = np.linalg.inv(np.ones((1,1)) * (self.lambda1 + kernel_value))
-        theta = Q*y
-        # Compute nu
-        distance = np.linalg.norm(x - self.parameters.loc[i, 'center'])
-        log_epsilon = math.sqrt(-2 * np.log(max(self.epsilon)))
-        nu = float(distance / log_epsilon)
-        NewRow = pd.DataFrame([{
-            'center': x,
-            'dictionary': x,
-            'nu': nu,
-            'P': np.ones((1,1)),
-            'Q': Q,
-            'theta': theta,
-            'arousal_index': 0.,
-            'utility': 1.,
-            'sum_lambda': 0.,
-            'num_observations': 1.,
-            'time_creation': k,
-            'compatibility_measure': 1.,
-            'old_center': np.zeros((x.shape[0],1)),
-            'tau': 1.
-        }])
-        self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
-    
-    def Kernel_Gaussiano(self, Vector1, Vector2):
-        distance = np.linalg.norm(Vector1 - Vector2)**2
-        return math.exp(-distance / (2 * self.sigma**2))
-    
-    def Compatibility_Measure(self, x, i):
+        return self.y_pred_test
+            
+    def NewRule(self, x, y, k=1., i=None, isFirst = False):
         
+        if isFirst:
+            
+            kernel_value = self.GaussianKernel(x, x)
+            Q = np.linalg.inv(np.ones((1,1)) * (self.lambda1 + kernel_value))
+            Theta = Q*y
+            self.parameters_list.append([x, x, float(self.sigma), np.ones((1,1)), Q, Theta, 0., 1., 0., 1., k, 1., np.zeros((x.shape[0],1)), 1., 0.])
+            # self.y_pred_training = np.append(self.y_pred_training, y)
+            # self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,0.)
         
-        # Verificar se a correlação é NaN
-        if (not np.all(np.isfinite(x)) or np.std(x, axis=0).min() == 0) or (not np.all(np.isfinite(self.parameters.loc[i, 'center'])) or np.std(self.parameters.loc[i, 'center'], axis=0).min() == 0):
-            compatibility_measure = 1 - (np.linalg.norm(x - self.parameters.loc[i, 'center']) / x.shape[0])
         else:
-            # Calcular a correlação uma vez
-            correlation = np.corrcoef(self.parameters.loc[i, 'center'].T, x.T)[0, 1]
-            compatibility_measure = (1 - (np.linalg.norm(x - self.parameters.loc[i, 'center']) / x.shape[0])) * ((correlation + 1) / 2)
+            
+            kernel_value = self.GaussianKernel(x, x)
+            Q = np.linalg.inv(np.ones((1,1)) * (self.lambda1 + kernel_value))
+            Theta = Q*y
+            # Compute nu
+            distance = np.linalg.norm(x - self.parameters_list[i][0])
+            log_epsilon = math.sqrt(-2 * np.log(max(self.epsilon)))
+            nu = float(distance / log_epsilon)
+            self.parameters_list.append([x, x, nu, np.ones((1,1)), Q, Theta, 0., 1., 0., 1., k, 1., np.zeros((x.shape[0],1)), 1., 0.])
         
-        # Atualizar a medida de compatibilidade
-        self.parameters.at[i, 'compatibility_measure'] = compatibility_measure
- 
+    def GaussianKernel(self, v1, v2):
+        
+        n = v1.shape[1]
+        if n == 1:
+            # Compute the kernel distance
+            distance = np.linalg.norm(v1 - v2)**2
+            return np.array([math.exp(-distance / (2 * self.sigma**2))]).reshape(-1,1)
+        else:
+            v3 = np.zeros((n,))
+            for j in range(n):
+                v3[j,] = math.exp(- (np.linalg.norm(v1[:,j].reshape(-1,1) - v2)**2) / (2 * self.sigma**2))
+            return v3.reshape(-1,1)
+    
+    def CompatibilityMeasure(self, x, i):
+        
+        # The compatibility measure can be lower than 0 if the input data is not normalized
+        # Verify if it is possible to compute the correlation
+        if (not np.all(np.isfinite(x)) or np.std(x, axis=0).min() == 0) or (not np.all(np.isfinite(self.parameters_list[i][0])) or np.std(self.parameters_list[i][0], axis=0).min() == 0):
+            # Compute the norm used to calculate the compatibility measure
+            norm_cm = (np.linalg.norm(x - self.parameters_list[i][0]) / x.shape[0])
+            # Compute the compatibility measure without the correlation
+            CompatibilityMeasure = 1 - norm_cm if norm_cm < 1. else 0.
+        else:
+            # Compute the correlation
+            correlation = np.corrcoef(self.parameters_list[i][0].T, x.T)[0, 1]
+            # Compute the norm used to calculate the compatibility measure
+            norm_cm = (np.linalg.norm(x - self.parameters_list[i][0]) / x.shape[0])
+            # Compute the compatibility measure
+            CompatibilityMeasure = (1 - norm_cm) * ((correlation + 1) / 2) if norm_cm < 1. else 0.
+        
+        # Update the compatibility measure
+        self.parameters_list[i][11] = CompatibilityMeasure
+        
+        # Update the respective arousal index
+        self.Arousal_Index(i)
+    
     def Arousal_Index(self, i):
+        
         # Atualização para todas as regras no DataFrame
-        self.parameters['arousal_index'] += self.beta * (1 - self.parameters['compatibility_measure'] - self.parameters['arousal_index'])
-
+        self.parameters_list[i][6] += self.beta * (1 - self.parameters_list[i][11] - self.parameters_list[i][6])
 
     
-    def Rule_Update(self, x, y, i):
-        # Incrementar o número de observações
-        self.parameters.loc[i, 'num_observations'] += 1
+    def UpdateRule(self, x, y, i):
         
-        # Atualizar o centro antigo e o centro atual de forma direta
-        old_center = self.parameters.loc[i, 'center']
-        compatibility_adjustment = self.alpha * (self.parameters.loc[i, 'compatibility_measure']) ** (1 - self.parameters.loc[i, 'arousal_index'])
-        new_center = old_center + compatibility_adjustment * (x - old_center)
+        # Update the parameters
+        # Update the number of observations
+        self.parameters_list[i][9] += 1
         
-        self.parameters.loc[i, ['old_center', 'center']] = [old_center, new_center]
+        # Update the old and new Centers
+        old_Center = self.parameters_list[i][0]
+        if np.isnan(self.parameters_list[i][6]):
+            print(self.parameters_list[i][6])
+        compatibility_adjustment = self.alpha * (self.parameters_list[i][11]) ** (1 - self.parameters_list[i][6])
+        new_Center = old_Center + compatibility_adjustment * (x - old_Center)
+        
+        self.parameters_list[i][12], self.parameters_list[i][0] = (old_Center, new_Center)
                        
     def Lambda(self, x):
-        # Calculando o somatório de 'tau' uma vez
-        tau_sum = self.parameters['tau'].sum()
         
-        # Atualizando a coluna 'lambda' vetorizadamente
-        self.parameters['lambda'] = self.parameters['tau'] / tau_sum
+        # Compute the sum of tau
+        tau_sum = 0
+        for i in range(len(self.parameters_list)):
+            tau_sum += self.parameters_list[i][13]
         
-        # Atualizando 'sum_lambda' acumulativamente
-        self.parameters['sum_lambda'] += self.parameters['lambda']
+        for i in range(len(self.parameters_list)):
             
-    def Utility_Measure(self, x, k):
-        # Calcular o tempo desde a criação
-        time_diff = k - self.parameters['time_creation']
+            # Update lambda
+            self.parameters_list[i][14] = self.parameters_list[i][13] / tau_sum
+        
+            # Update the sum of lambda
+            self.parameters_list[i][8] += self.parameters_list[i][14]
+            
+    def UtilityMeasure(self, x, k):
+        
+        remove = []
+        for i in range(len(self.parameters_list)):
+            
+            # Compute how long ago the rule was created
+            time_diff = k - self.parameters_list[i][10]
+            
+            # Compute the utilit measure
+            self.parameters_list[i][7] = self.parameters_list[i][8] / time_diff if time_diff != 0 else 1
+            
+        
+            # Find rules with utility lower than a threshold
+            if self.parameters_list[i][7] < self.e_utility:
+                remove.append(i)
+                    
+        # Remove old rules
+        if not remove:
+            
+            self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
     
-        # Evitar divisões por zero
-        with np.errstate(divide='ignore', invalid='ignore'):
-            self.parameters['utility'] = np.where(
-                time_diff == 0, 
-                1,  # Caso em que o tempo de criação é igual a k
-                self.parameters['sum_lambda'] / time_diff
-            )
-    
-        # Identificar regras com utilidade menor que o limite
-        remove = self.parameters[self.parameters['utility'] < self.e_utility].index
-    
-        # Remover as regras inadequadas
-        if not remove.empty:
-            self.parameters.drop(index=remove, inplace=True)
-    
-            # Indicar que uma regra foi excluída
+            # Inform that a rules was excluded and create no more rules
             self.ExcludedRule = 1
+            
             
     def KRLS(self, x, y, i):
         
-        # Validar número de observações
-        num_obs = self.parameters.loc[i, 'num_observations']
+        # Verify the number of observations
+        num_obs = self.parameters_list[i][9]
         if num_obs <= 0:
             raise ValueError("Número de observações deve ser maior que zero para evitar divisão por zero.")
     
         # Atualizar 'nu' (kernel size)
-        center = self.parameters.loc[i, 'center']
-        old_center = self.parameters.loc[i, 'old_center']
-        nu = self.parameters.loc[i, 'nu']
-        norm_diff = np.linalg.norm(x - center)
-        center_shift = np.linalg.norm(center - old_center)
+        Center = self.parameters_list[i][0]
+        old_Center = self.parameters_list[i][12]
+        nu = self.parameters_list[i][2]
+        norm_diff = np.linalg.norm(x - Center)
+        Center_shift = np.linalg.norm(Center - old_Center)
     
-        self.parameters.at[i, 'nu'] = math.sqrt(
-            nu**2 + (norm_diff**2 - nu**2) / num_obs + (num_obs - 1) * center_shift**2 / num_obs
+        self.parameters_list[i][2] = math.sqrt(
+            nu**2 + (norm_diff**2 - nu**2) / num_obs + (num_obs - 1) * Center_shift**2 / num_obs
         )
     
         # Calcular vetor g
-        dictionary = self.parameters.loc[i, 'dictionary']
-        g = np.array([self.Kernel_Gaussiano(dictionary[:, ni].reshape(-1, 1), x) for ni in range(dictionary.shape[1])]).reshape(-1, 1)
+        dictionary = self.parameters_list[i][1]
+        g = np.array([self.GaussianKernel(dictionary, x)]).reshape(-1,1)
     
         # Calcular z, r, erro estimado
-        z = np.matmul(self.parameters.loc[i, 'Q'], g)
+        z = np.matmul(self.parameters_list[i][4], g)
         r = self.lambda1 + 1 - np.matmul(z.T, g).item()
-        estimated_error = y - np.matmul(g.T, self.parameters.loc[i, 'theta'])
+        estimated_error = y - np.matmul(g.T, self.parameters_list[i][5])
     
         # Calcular distâncias
         distance = np.linalg.norm(dictionary - x, axis=0)
         min_distance = np.min(distance)
     
         # Critério de novidade
-        if min_distance > 0.1 * self.parameters.loc[i, 'nu']:
+        if min_distance > 0.1 * self.parameters_list[i][2]:
             # Atualizar dicionário
-            self.parameters.at[i, 'dictionary'] = np.hstack([dictionary, x])
+            self.parameters_list[i][1] = np.hstack([dictionary, x])
     
             # Atualizar Q
-            Q = self.parameters.loc[i, 'Q']
+            Q = self.parameters_list[i][4]
             sizeQ = Q.shape[0]
             new_Q = np.zeros((sizeQ + 1, sizeQ + 1))
             new_Q[:sizeQ, :sizeQ] = Q + (1 / r) * np.matmul(z, z.T)
             new_Q[-1, -1] = (1 / r) * self.omega
             new_Q[:sizeQ, -1] = new_Q[-1, :sizeQ] = -(1 / r) * z.flatten()
-            self.parameters.at[i, 'Q'] = new_Q
+            self.parameters_list[i][4] = new_Q
     
             # Atualizar P
-            P = self.parameters.loc[i, 'P']
+            P = self.parameters_list[i][3]
             new_P = np.zeros((P.shape[0] + 1, P.shape[1] + 1))
             new_P[:P.shape[0], :P.shape[1]] = P
             new_P[-1, -1] = self.omega
-            self.parameters.at[i, 'P'] = new_P
+            self.parameters_list[i][3] = new_P
     
-            # Atualizar theta
-            theta = self.parameters.loc[i, 'theta']
-            self.parameters.at[i, 'theta'] = np.vstack([theta - (z * (1 / r) * estimated_error), (1 / r) * estimated_error])
+            # Atualizar Theta
+            Theta = self.parameters_list[i][5]
+            self.parameters_list[i][5] = np.vstack([Theta - (z * (1 / r) * estimated_error), (1 / r) * estimated_error])
         else:
-            # Atualizar P e theta (caso de baixa novidade)
-            P = self.parameters.loc[i, 'P']
+            # Atualizar P e Theta (caso de baixa novidade)
+            P = self.parameters_list[i][3]
             q = np.matmul(P, z) / (1 + np.matmul(np.matmul(z.T, P), z))
-            self.parameters.at[i, 'P'] = P - np.matmul(q, np.matmul(z.T, P))
-            self.parameters.at[i, 'theta'] += np.matmul(self.parameters.loc[i, 'Q'], q) * estimated_error
-
+            self.parameters_list[i][3] = P - np.matmul(q, np.matmul(z.T, P))
+            self.parameters_list[i][5] += np.matmul(self.parameters_list[i][4], q) * estimated_error
             
 class ePL_plus(base):
     
@@ -531,17 +625,17 @@ class ePL_plus(base):
         self.pi = pi
         
         # Model's parameters
-        self.parameters = pd.DataFrame(columns = ['center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'tau', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
+        self.parameters = pd.DataFrame(columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'tau', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
         # Monitoring if some rule was excluded
         self.ExcludedRule = 0
         # Evolution of the model rules
         self.rules = []
         # Computing the output in the training phase
-        self.OutputTrainingPhase = np.array([])
+        self.y_pred_training = np.array([])
         # Computing the residual square in the ttraining phase
         self.ResidualTrainingPhase = np.array([])
         # Computing the output in the testing phase
-        self.OutputTestPhase = np.array([])
+        self.y_pred_test = np.array([])
         # Computing the residual square in the testing phase
         self.ResidualTestPhase = np.array([])
     
@@ -620,17 +714,17 @@ class ePL_plus(base):
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
             # Compute the compatibility measure and the arousal index for all rules
             for i in self.parameters.index:
-                self.Compatibility_Measure(x, i)
+                self.CompatibilityMeasure(x, i)
                 self.Arousal_Index(i)
             # Find the minimum arousal index
-            MinIndexArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
+            MinArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
             # Find the maximum compatibility measure
-            MaxIndexCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
+            MaxCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
             # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinIndexArousal, 'ArousalIndex'] > self.tau:
+            if self.parameters.loc[MinArousal, 'ArousalIndex'] > self.tau:
                 self.Initialize_Cluster(x, y[k], z, k+1)
             else:
-                self.Rule_Update(x, y[k], z, MaxIndexCompatibility)
+                self.UpdateRule(x, y[k], z, MaxCompatibility)
             if self.parameters.shape[0] > 1:
                 self.Similarity_Index()
             # Compute the number of rules at the current iteration
@@ -643,19 +737,19 @@ class ePL_plus(base):
             self.Lambda(x)
             # Utility Measure
             if self.parameters.shape[0] > 1:
-                self.Utility_Measure(X[k,], k+1)
+                self.UtilityMeasure(X[k,], k+1)
             # Compute the output
             Output = 0
             for row in self.parameters.index:
                 Output = Output + self.parameters.loc[row, 'lambda'] * xe.T @ self.parameters.loc[row, 'Gamma']
             Output = Output / sum(self.parameters['lambda'])
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
     
     def evolve(self, X, y):
         
         # Be sure that X is with a correct shape
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'center'].shape[0])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
@@ -704,17 +798,17 @@ class ePL_plus(base):
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
             # Compute the compatibility measure and the arousal index for all rules
             for i in self.parameters.index:
-                self.Compatibility_Measure(x, i)
+                self.CompatibilityMeasure(x, i)
                 self.Arousal_Index(i)
             # Find the minimum arousal index
-            MinIndexArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
+            MinArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
             # Find the maximum compatibility measure
-            MaxIndexCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
+            MaxCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
             # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinIndexArousal, 'ArousalIndex'] > self.tau:
+            if self.parameters.loc[MinArousal, 'ArousalIndex'] > self.tau:
                 self.Initialize_Cluster(x, y[k], z, k+1)
             else:
-                self.Rule_Update(x, y[k], z, MaxIndexCompatibility)
+                self.UpdateRule(x, y[k], z, MaxCompatibility)
             if self.parameters.shape[0] > 1:
                 self.Similarity_Index()
             # Compute the number of rules at the current iteration
@@ -727,13 +821,13 @@ class ePL_plus(base):
             self.Lambda(x)
             # Utility Measure
             if self.parameters.shape[0] > 1:
-                self.Utility_Measure(X[k,], k+1)
+                self.UtilityMeasure(X[k,], k+1)
             # Compute the output
             Output = 0
             for row in self.parameters.index:
                 Output = Output + self.parameters.loc[row, 'lambda'] * xe.T @ self.parameters.loc[row, 'Gamma']
             Output = Output / sum(self.parameters['lambda'])
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
             
     def predict(self, X):
@@ -749,7 +843,7 @@ class ePL_plus(base):
                 " Check X for non-numeric or infinity values"
             )
             
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'center'].shape[0])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         for k in range(X.shape[0]):
             # Prepare the first input vector
             x = X[k,].reshape((1,-1)).T
@@ -764,21 +858,21 @@ class ePL_plus(base):
             for row in self.parameters.index:
                 Output = Output + self.parameters.loc[row, 'lambda'] * xe.T @ self.parameters.loc[row, 'Gamma']
             Output = Output / sum(self.parameters['lambda'])
-            self.OutputTestPhase = np.append(self.OutputTestPhase, Output)
-        return self.OutputTestPhase[-X.shape[0]:]
+            self.y_pred_test = np.append(self.y_pred_test, Output)
+        return self.y_pred_test[-X.shape[0]:]
         
     def Initialize_First_Cluster(self, x, y, z):
-        self.parameters = pd.DataFrame([[x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0], 1))]], columns = ['center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
+        self.parameters = pd.DataFrame([[x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0], 1))]], columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
         Output = y
-        self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+        self.y_pred_training = np.append(self.y_pred_training, Output)
         self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y)**2)
     
     def Initialize_Cluster(self, x, y, z, k):
-        NewRow = pd.DataFrame([[x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0] + 1, 1))]], columns = ['center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
+        NewRow = pd.DataFrame([[x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0] + 1, 1))]], columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
         self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
 
-    def Compatibility_Measure(self, x, i):
-        self.parameters.at[i, 'CompatibilityMeasure'] = (1 - (np.linalg.norm(x - self.parameters.loc[i, 'center']))/x.shape[0] )
+    def CompatibilityMeasure(self, x, i):
+        self.parameters.at[i, 'CompatibilityMeasure'] = (1 - (np.linalg.norm(x - self.parameters.loc[i, 'Center']))/x.shape[0] )
             
     def Arousal_Index(self, i):
         self.parameters.at[i, 'ArousalIndex'] = self.parameters.loc[i, 'ArousalIndex'] + self.beta*(1 - self.parameters.loc[i, 'CompatibilityMeasure'] - self.parameters.loc[i, 'ArousalIndex'])
@@ -794,7 +888,7 @@ class ePL_plus(base):
         for row in self.parameters.index:
             tau = 1
             for j in range(x.shape[0]):
-                tau = tau * self.mu(x[j], self.parameters.loc[row, 'center'][j,0], row, j)
+                tau = tau * self.mu(x[j], self.parameters.loc[row, 'Center'][j,0], row, j)
             # Evoid mtau with values zero
             if abs(tau) < (10 ** -100):
                 tau = (10 ** -100)
@@ -805,7 +899,7 @@ class ePL_plus(base):
             self.parameters.at[row, 'lambda'] = self.parameters.loc[row, 'tau'] / sum(self.parameters['tau'])
             self.parameters.at[row, 'SumLambda'] = self.parameters.loc[row, 'SumLambda'] + self.parameters.loc[row, 'lambda']
             
-    def Utility_Measure(self, x, k):
+    def UtilityMeasure(self, x, k):
         # Calculating the utility
         remove = []
         for i in self.parameters.index:
@@ -818,11 +912,11 @@ class ePL_plus(base):
         if len(remove) > 0:    
             self.parameters = self.parameters.drop(remove)  
            
-    def Rule_Update(self, x, y, z, i):
+    def UpdateRule(self, x, y, z, i):
         # Update the number of observations in the rule
         self.parameters.loc[i, 'NumObservations'] = self.parameters.loc[i, 'NumObservations'] + 1
-        # Update the cluster center
-        self.parameters.at[i, 'center'] = self.parameters.loc[i, 'center'] + (self.alpha*(self.parameters.loc[i, 'CompatibilityMeasure'])**(1 - self.alpha))*(x - self.parameters.loc[i, 'center'])
+        # Update the cluster Center
+        self.parameters.at[i, 'Center'] = self.parameters.loc[i, 'Center'] + (self.alpha*(self.parameters.loc[i, 'CompatibilityMeasure'])**(1 - self.alpha))*(x - self.parameters.loc[i, 'Center'])
         # Update the cluster support
         self.parameters.at[i, 'support'] = self.parameters.loc[i, 'support'] + 1
         # Update the cluster diff z
@@ -840,7 +934,7 @@ class ePL_plus(base):
                 vi, vj = self.parameters.iloc[i,0], self.parameters.iloc[j,0]
                 compat_ij = (1 - ((np.linalg.norm(vi - vj))))
                 if compat_ij >= self.lambda1:
-                    self.parameters.at[self.parameters.index[j], 'center'] = ( (self.parameters.loc[self.parameters.index[i], 'center'] + self.parameters.loc[self.parameters.index[j], 'center']) / 2)
+                    self.parameters.at[self.parameters.index[j], 'Center'] = ( (self.parameters.loc[self.parameters.index[i], 'Center'] + self.parameters.loc[self.parameters.index[j], 'Center']) / 2)
                     self.parameters.at[self.parameters.index[j], 'P'] = ( (self.parameters.loc[self.parameters.index[i], 'P'] + self.parameters.loc[self.parameters.index[j], 'P']) / 2)
                     self.parameters.at[self.parameters.index[j], 'Gamma'] = np.array((self.parameters.loc[self.parameters.index[i], 'Gamma'] + self.parameters.loc[self.parameters.index[j], 'Gamma']) / 2)
                     l.append(int(i))
@@ -877,7 +971,7 @@ class eMG(base):
         self.maximum_rules = maximum_rules
         
         # Model's parameters
-        self.parameters = pd.DataFrame(columns = ['center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Gamma', 'Q', 'LocalOutput'])
+        self.parameters = pd.DataFrame(columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Gamma', 'Q', 'LocalOutput'])
         # Defining the initial dispersion matrix
         self.Sigma_init = np.array([])
         # Defining the threshold for the compatibility measure
@@ -889,11 +983,11 @@ class eMG(base):
         # Evolution of the model rules
         self.rules = []
         # Computing the output in the training phase
-        self.OutputTrainingPhase = np.array([])
+        self.y_pred_training = np.array([])
         # Computing the residual square in the ttraining phase
         self.ResidualTrainingPhase = np.array([])
         # Computing the output in the testing phase
-        self.OutputTestPhase = np.array([])
+        self.y_pred_test = np.array([])
         # Computing the residual square in the testing phase
         self.ResidualTestPhase = np.array([])
         
@@ -965,7 +1059,7 @@ class eMG(base):
             Output = 0
             sumCompatibility = 0
             for i in self.parameters.index:
-                self.Compatibility_Measure(X[k,], i)
+                self.CompatibilityMeasure(X[k,], i)
                 # Local output
                 self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Gamma']
                 Output = Output + self.parameters.at[i, 'LocalOutput'] * self.parameters.loc[i, 'CompatibilityMeasure']
@@ -976,32 +1070,32 @@ class eMG(base):
             else:
                 Output = Output/sumCompatibility
                 
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             # Residual
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
-            center = -1
+            Center = -1
             compatibility = -1
             for i in self.parameters.index:
                 chistat = self.M_Distance(X[k,].reshape(1, X.shape[1]), i)
                 if self.parameters.loc[i, 'ArousalIndex'] < self.Ta and chistat < self.Tp:
                     if self.parameters.loc[i, 'CompatibilityMeasure'] > compatibility:
                         compatibility = self.parameters.loc[i, 'CompatibilityMeasure']
-                        center = i
-            if center == -1:
+                        Center = i
+            if Center == -1:
                 self.Initialize_Cluster(X[k,], y[k])
-                center = self.parameters.last_valid_index()               
+                Center = self.parameters.last_valid_index()               
             else:
-                self.Rule_Update(X[k,], y[k], center)
+                self.UpdateRule(X[k,], y[k], Center)
             for i in self.parameters.index:
                 self.Update_Consequent_Parameters(xk, y[k], i)
             if self.parameters.shape[0] > 1:
-                self.Merging_Rules(X[k,], center)
+                self.Merging_Rules(X[k,], Center)
             self.rules.append(self.parameters.shape[0])
     
     def evolve(self, X, y):
         
         # Be sure that X is with a correct shape
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'center'].shape[1])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[1])
         
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
@@ -1049,7 +1143,7 @@ class eMG(base):
             Output = 0
             sumCompatibility = 0
             for i in self.parameters.index:
-                self.Compatibility_Measure(X[k,], i)
+                self.CompatibilityMeasure(X[k,], i)
                 # Local output
                 self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Gamma']
                 Output = Output + self.parameters.at[i, 'LocalOutput'] * self.parameters.loc[i, 'CompatibilityMeasure']
@@ -1060,26 +1154,26 @@ class eMG(base):
             else:
                 Output = Output/sumCompatibility
                 
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             # Residual
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
-            center = -1
+            Center = -1
             compatibility = -1
             for i in self.parameters.index:
                 chistat = self.M_Distance(X[k,].reshape(1, X.shape[1]), i)
                 if self.parameters.loc[i, 'ArousalIndex'] < self.Ta and chistat < self.Tp:
                     if self.parameters.loc[i, 'CompatibilityMeasure'] > compatibility:
                         compatibility = self.parameters.loc[i, 'CompatibilityMeasure']
-                        center = i
-            if center == -1:
+                        Center = i
+            if Center == -1:
                 self.Initialize_Cluster(X[k,], y[k])
-                center = self.parameters.last_valid_index()               
+                Center = self.parameters.last_valid_index()               
             else:
-                self.Rule_Update(X[k,], y[k], center)
+                self.UpdateRule(X[k,], y[k], Center)
             for i in self.parameters.index:
                 self.Update_Consequent_Parameters(xk, y[k], i)
             if self.parameters.shape[0] > 1:
-                self.Merging_Rules(X[k,], center)
+                self.Merging_Rules(X[k,], Center)
             self.rules.append(self.parameters.shape[0])
             
     def predict(self, X):
@@ -1095,7 +1189,7 @@ class eMG(base):
                 " Check X for non-numeric or infinity values"
             )
             
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'center'].shape[1])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[1])
         
         for k in range(X.shape[0]):
             
@@ -1105,7 +1199,7 @@ class eMG(base):
             Output = 0
             sumCompatibility = 0
             for i in self.parameters.index:
-                self.Compatibility_Measure(X[k,], i)
+                self.CompatibilityMeasure(X[k,], i)
                 # Local output
                 self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Gamma']
                 Output = Output + self.parameters.at[i, 'LocalOutput'] * self.parameters.loc[i, 'CompatibilityMeasure']
@@ -1116,8 +1210,8 @@ class eMG(base):
             else:
                 Output = Output/sumCompatibility
                 
-            self.OutputTestPhase = np.append(self.OutputTestPhase, Output)
-        return self.OutputTestPhase[-X.shape[0]:]
+            self.y_pred_test = np.append(self.y_pred_test, Output)
+        return self.y_pred_test[-X.shape[0]:]
     
     def validate_vector(self, u, dtype=None):
         # XXX Is order='c' really necessary?
@@ -1186,20 +1280,20 @@ class eMG(base):
         x = x.reshape(1, x.shape[0])
         Q = self.omega * np.eye(x.shape[1] + 1)
         Gamma = np.insert(np.zeros((x.shape[1],1)), 0, y, axis=0)
-        self.parameters = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Gamma, Q, 0.]], columns = ['center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Gamma', 'Q', 'LocalOutput'])
+        self.parameters = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Gamma, Q, 0.]], columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Gamma', 'Q', 'LocalOutput'])
     
     def Initialize_Cluster(self, x, y):
         x = x.reshape(1, x.shape[0])
         Q = self.omega * np.eye(x.shape[1] + 1)
         Gamma = np.insert(np.zeros((x.shape[1],1)), 0, y, axis=0)
-        NewRow = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Gamma, Q, 0.]], columns = ['center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Gamma', 'Q', 'LocalOutput'])
+        NewRow = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Gamma, Q, 0.]], columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Gamma', 'Q', 'LocalOutput'])
         self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
     
     def M_Distance(self, x, i):
-        dist = self.mahalanobis(x, self.parameters.loc[i, 'center'], np.linalg.inv(self.parameters.loc[i, 'Sigma']))
+        dist = self.mahalanobis(x, self.parameters.loc[i, 'Center'], np.linalg.inv(self.parameters.loc[i, 'Sigma']))
         return dist
        
-    def Compatibility_Measure(self, x, i):
+    def CompatibilityMeasure(self, x, i):
         x = x.reshape(1, x.shape[0])
         dist = self.M_Distance(x, i)
         compat = math.exp(-0.5 * dist)
@@ -1214,35 +1308,35 @@ class eMG(base):
         self.parameters.at[i, 'ArousalIndex'] = arousal
         return arousal
     
-    def Rule_Update(self, x, y, MaxIndexCompatibility):
+    def UpdateRule(self, x, y, MaxCompatibility):
         # Update the number of observations in the rule
-        self.parameters.loc[MaxIndexCompatibility, 'NumObservations'] = self.parameters.loc[MaxIndexCompatibility, 'NumObservations'] + 1
-        # Store the old cluster center
-        # Oldcenter = self.parameters.loc[MaxIndexCompatibility, 'center']
-        G = (self.alpha * (self.parameters.loc[MaxIndexCompatibility, 'CompatibilityMeasure'])**(1 - self.parameters.loc[MaxIndexCompatibility, 'ArousalIndex']))
-        # Update the cluster center
-        self.parameters.at[MaxIndexCompatibility, 'center'] = self.parameters.loc[MaxIndexCompatibility, 'center'] + G * (x - self.parameters.loc[MaxIndexCompatibility, 'center'])
+        self.parameters.loc[MaxCompatibility, 'NumObservations'] = self.parameters.loc[MaxCompatibility, 'NumObservations'] + 1
+        # Store the old cluster Center
+        # OldCenter = self.parameters.loc[MaxCompatibility, 'Center']
+        G = (self.alpha * (self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'])**(1 - self.parameters.loc[MaxCompatibility, 'ArousalIndex']))
+        # Update the cluster Center
+        self.parameters.at[MaxCompatibility, 'Center'] = self.parameters.loc[MaxCompatibility, 'Center'] + G * (x - self.parameters.loc[MaxCompatibility, 'Center'])
         # Updating the dispersion matrix
-        self.parameters.at[MaxIndexCompatibility, 'Sigma'] = (1 - G) * (self.parameters.loc[MaxIndexCompatibility, 'Sigma'] - G * (x - self.parameters.loc[MaxIndexCompatibility, 'center']) @ (x - self.parameters.loc[MaxIndexCompatibility, 'center']).T)
+        self.parameters.at[MaxCompatibility, 'Sigma'] = (1 - G) * (self.parameters.loc[MaxCompatibility, 'Sigma'] - G * (x - self.parameters.loc[MaxCompatibility, 'Center']) @ (x - self.parameters.loc[MaxCompatibility, 'Center']).T)
         
     def Membership_Function(self, x, i):
-        dist = self.mahalanobis(x, self.parameters.loc[i, 'center'], np.linalg.inv(self.parameters.loc[i, 'Sigma']))
+        dist = self.mahalanobis(x, self.parameters.loc[i, 'Center'], np.linalg.inv(self.parameters.loc[i, 'Sigma']))
         return math.sqrt(dist)
         
     def Update_Consequent_Parameters(self, xk, y, i):
         self.parameters.at[i, 'Q'] = self.parameters.loc[i, 'Q'] - ((self.parameters.loc[i, 'CompatibilityMeasure'] * self.parameters.loc[i, 'Q'] @ xk.T @ xk @ self.parameters.loc[i, 'Q']) / (1 + self.parameters.loc[i, 'CompatibilityMeasure'] * xk @ self.parameters.loc[i, 'Q'] @ xk.T))
         self.parameters.at[i, 'Gamma'] = self.parameters.loc[i, 'Gamma'] + self.parameters.loc[i, 'Q'] @ xk.T * self.parameters.loc[i, 'CompatibilityMeasure'] * (y - xk @ self.parameters.loc[i, 'Gamma'])
                         
-    def Merging_Rules(self, x, MaxIndexCompatibility):
+    def Merging_Rules(self, x, MaxCompatibility):
         for i in self.parameters.index:
-            if MaxIndexCompatibility != i:
-                dist1 = self.M_Distance(self.parameters.loc[MaxIndexCompatibility, 'center'], i)
-                dist2 = self.M_Distance(self.parameters.loc[i, 'center'], MaxIndexCompatibility)
+            if MaxCompatibility != i:
+                dist1 = self.M_Distance(self.parameters.loc[MaxCompatibility, 'Center'], i)
+                dist2 = self.M_Distance(self.parameters.loc[i, 'Center'], MaxCompatibility)
                 if dist1 < self.Tp or dist2 < self.Tp:
-                    self.parameters.at[MaxIndexCompatibility, 'center'] = np.mean(np.array([self.parameters.loc[i, 'center'], self.parameters.loc[MaxIndexCompatibility, 'center']]), axis=0)
-                    self.parameters.at[MaxIndexCompatibility, 'Sigma'] = [self.Sigma_init]
-                    self.parameters.at[MaxIndexCompatibility, 'Q'] = self.omega * np.eye(x.shape[0] + 1)
-                    self.parameters.at[MaxIndexCompatibility, 'Gamma'] = (self.parameters.loc[MaxIndexCompatibility, 'Gamma'] * self.parameters.loc[MaxIndexCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'Gamma'] * self.parameters.loc[i, 'CompatibilityMeasure']) / (self.parameters.loc[MaxIndexCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'CompatibilityMeasure'])
+                    self.parameters.at[MaxCompatibility, 'Center'] = np.mean(np.array([self.parameters.loc[i, 'Center'], self.parameters.loc[MaxCompatibility, 'Center']]), axis=0)
+                    self.parameters.at[MaxCompatibility, 'Sigma'] = [self.Sigma_init]
+                    self.parameters.at[MaxCompatibility, 'Q'] = self.omega * np.eye(x.shape[0] + 1)
+                    self.parameters.at[MaxCompatibility, 'Gamma'] = (self.parameters.loc[MaxCompatibility, 'Gamma'] * self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'Gamma'] * self.parameters.loc[i, 'CompatibilityMeasure']) / (self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'CompatibilityMeasure'])
                     self.parameters = self.parameters.drop(i)
                     # Stop creating new rules when the model exclude the first rule
                     self.ExcludedRule = 1
@@ -1273,17 +1367,17 @@ class ePL(base):
         self.s = s
         self.r = r
         
-        self.parameters = pd.DataFrame(columns = ['center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
+        self.parameters = pd.DataFrame(columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
         # Monitoring if some rule was excluded
         self.ExcludedRule = 0
         # Evolution of the model rules
         self.rules = []
         # Computing the output in the training phase
-        self.OutputTrainingPhase = np.array([])
+        self.y_pred_training = np.array([])
         # Computing the residual square in the ttraining phase
         self.ResidualTrainingPhase = np.array([])
         # Computing the output in the testing phase
-        self.OutputTestPhase = np.array([])
+        self.y_pred_test = np.array([])
         # Computing the residual square in the testing phase
         self.ResidualTestPhase = np.array([])
     
@@ -1360,19 +1454,19 @@ class ePL(base):
             
             # Compute the compatibility measure and the arousal index for all rules
             for i in self.parameters.index:
-                self.Compatibility_Measure(x, i)
+                self.CompatibilityMeasure(x, i)
                 self.Arousal_Index(i)
             
             # Find the minimum arousal index
-            MinIndexArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
+            MinArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
             # Find the maximum compatibility measure
-            MaxIndexCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
+            MaxCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
             
             # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinIndexArousal, 'ArousalIndex'] > self.tau:
+            if self.parameters.loc[MinArousal, 'ArousalIndex'] > self.tau:
                 self.Initialize_Cluster(x, y[k], k+1)
             else:
-                self.Rule_Update(x, y[k], MaxIndexCompatibility)
+                self.UpdateRule(x, y[k], MaxCompatibility)
             if self.parameters.shape[0] > 1:
                 self.Similarity_Index()
                 
@@ -1389,13 +1483,13 @@ class ePL(base):
             weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Gamma)
             Output = np.sum(weighted_outputs) / np.sum(mu)
             
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
     
     def evolve(self, X, y):
         
         # Be sure that X is with a correct shape
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'center'].shape[0])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
@@ -1443,19 +1537,19 @@ class ePL(base):
             
             # Compute the compatibility measure and the arousal index for all rules
             for i in self.parameters.index:
-                self.Compatibility_Measure(x, i)
+                self.CompatibilityMeasure(x, i)
                 self.Arousal_Index(i)
                 
             # Find the minimum arousal index
-            MinIndexArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
+            MinArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
             # Find the maximum compatibility measure
-            MaxIndexCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
+            MaxCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
             
             # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinIndexArousal, 'ArousalIndex'] > self.tau:
+            if self.parameters.loc[MinArousal, 'ArousalIndex'] > self.tau:
                 self.Initialize_Cluster(x, y[k], k+1)
             else:
-                self.Rule_Update(x, y[k], MaxIndexCompatibility)
+                self.UpdateRule(x, y[k], MaxCompatibility)
             if self.parameters.shape[0] > 1:
                 self.Similarity_Index()
                 
@@ -1472,7 +1566,7 @@ class ePL(base):
             weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Gamma)
             Output = np.sum(weighted_outputs) / np.sum(mu)
             
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
             
     def predict(self, X):
@@ -1488,7 +1582,7 @@ class ePL(base):
                 " Check X for non-numeric or infinity values"
             )
             
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'center'].shape[0])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
         for k in range(X.shape[0]):
             
@@ -1505,35 +1599,35 @@ class ePL(base):
             weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Gamma)
             Output = np.sum(weighted_outputs) / np.sum(mu)
             
-            self.OutputTestPhase = np.append(self.OutputTestPhase, Output)
+            self.y_pred_test = np.append(self.y_pred_test, Output)
             
-        return self.OutputTestPhase[-X.shape[0]:]
+        return self.y_pred_test[-X.shape[0]:]
         
     def Initialize_First_Cluster(self, x, y):
-        self.parameters = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 1.]], columns = ['center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
+        self.parameters = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 1.]], columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
         Output = y
-        self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+        self.y_pred_training = np.append(self.y_pred_training, Output)
         self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y)**2)
     
     def Initialize_Cluster(self, x, y, k):
-        NewRow = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 1.]], columns = ['center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
+        NewRow = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 1.]], columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
         self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
 
-    def Compatibility_Measure(self, x, i):
-        self.parameters.at[i, 'CompatibilityMeasure'] = (1 - (np.linalg.norm(x - self.parameters.loc[i, 'center']))/x.shape[0] )
+    def CompatibilityMeasure(self, x, i):
+        self.parameters.at[i, 'CompatibilityMeasure'] = (1 - (np.linalg.norm(x - self.parameters.loc[i, 'Center']))/x.shape[0] )
             
     def Arousal_Index(self, i):
         self.parameters.at[i, 'ArousalIndex'] += self.beta*(1 - self.parameters.loc[i, 'CompatibilityMeasure'] - self.parameters.loc[i, 'ArousalIndex'])
     
     def mu(self, x):
         for row in self.parameters.index:
-            self.parameters.at[row, 'mu'] = math.exp( - self.r * np.linalg.norm(self.parameters.loc[row, 'center'] - x ) )
+            self.parameters.at[row, 'mu'] = math.exp( - self.r * np.linalg.norm(self.parameters.loc[row, 'Center'] - x ) )
            
-    def Rule_Update(self, x, y, i):
+    def UpdateRule(self, x, y, i):
         # Update the number of observations in the rule
         self.parameters.loc[i, 'NumObservations'] += 1
-        # Update the cluster center
-        self.parameters.at[i, 'center'] += (self.alpha*(self.parameters.loc[i, 'CompatibilityMeasure'])**(1 - self.alpha))*(x - self.parameters.loc[i, 'center'])
+        # Update the cluster Center
+        self.parameters.at[i, 'Center'] += (self.alpha*(self.parameters.loc[i, 'CompatibilityMeasure'])**(1 - self.alpha))*(x - self.parameters.loc[i, 'Center'])
           
         
     def Similarity_Index(self):
@@ -1544,7 +1638,7 @@ class ePL(base):
                 vi, vj = self.parameters.iloc[i,0], self.parameters.iloc[j,0]
                 compat_ij = (1 - ((np.linalg.norm(vi - vj))))
                 if compat_ij >= self.lambda1:
-                    self.parameters.at[self.parameters.index[j], 'center'] = ( (self.parameters.loc[self.parameters.index[i], 'center'] + self.parameters.loc[self.parameters.index[j], 'center']) / 2)
+                    self.parameters.at[self.parameters.index[j], 'Center'] = ( (self.parameters.loc[self.parameters.index[i], 'Center'] + self.parameters.loc[self.parameters.index[j], 'Center']) / 2)
                     self.parameters.at[self.parameters.index[j], 'P'] = ( (self.parameters.loc[self.parameters.index[i], 'P'] + self.parameters.loc[self.parameters.index[j], 'P']) / 2)
                     self.parameters.at[self.parameters.index[j], 'Gamma'] = np.array((self.parameters.loc[self.parameters.index[i], 'Gamma'] + self.parameters.loc[self.parameters.index[j], 'Gamma']) / 2)
                     l.append(int(i))
@@ -1576,7 +1670,7 @@ class exTS(base):
         self.rho = rho
         
         # Model's parameters
-        self.parameters = pd.DataFrame(columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Potential', 'TimeCreation', 'NumPoints', 'mu', 'Tau', 'Lambda', 'r', 'sigma', 'increment_center_x'])
+        self.parameters = pd.DataFrame(columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Potential', 'TimeCreation', 'NumPoints', 'mu', 'Tau', 'Lambda', 'r', 'sigma', 'increment_Center_x'])
         self.InitialPotential = 1.
         self.DataPotential = 0.
         self.InitialTheta = 0.
@@ -1587,11 +1681,11 @@ class exTS(base):
         # Evolution of the model rules
         self.rules = []
         # Computing the output in the training phase
-        self.OutputTrainingPhase = np.array([])
+        self.y_pred_training = np.array([])
         # Computing the residual square in the ttraining phase
         self.ResidualTrainingPhase = np.array([])
         # Computing the output in the testing phase
-        self.OutputTestPhase = np.array([])
+        self.y_pred_test = np.array([])
     
     def get_params(self, deep=True):
         return {
@@ -1686,7 +1780,7 @@ class exTS(base):
                         mu_onethird = 1
                 if mu_onethird == 1:                            
                     # Update an existing rule
-                    self.Rule_Update(x, z)
+                    self.UpdateRule(x, z)
                 else:
                     # Create a new rule
                     self.Initialize_Cluster(x, z, k+1, i)
@@ -1707,7 +1801,7 @@ class exTS(base):
                 for row in self.parameters.index
             )
             # Store the output in the array
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             # Compute the square residual of the current iteration
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
         
@@ -1788,7 +1882,7 @@ class exTS(base):
                         mu_onethird = 1
                 if mu_onethird == 1:                            
                     # Update an existing rule
-                    self.Rule_Update(x, z)
+                    self.UpdateRule(x, z)
                 else:
                     # Create a new rule
                     self.Initialize_Cluster(x, z, k+1, i)
@@ -1810,7 +1904,7 @@ class exTS(base):
             )
             
             # Store the output in the array
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             # Compute the square residual of the current iteration
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
         
@@ -1850,9 +1944,9 @@ class exTS(base):
             )
             
             # Store the output in the array
-            self.OutputTestPhase = np.append(self.OutputTestPhase, Output)
+            self.y_pred_test = np.append(self.y_pred_test, Output)
             
-        return self.OutputTestPhase[-X.shape[0]:]
+        return self.y_pred_test[-X.shape[0]:]
         
     def Initialize_First_Cluster(self, x, y, z):
         self.parameters = pd.DataFrame([{
@@ -1867,10 +1961,10 @@ class exTS(base):
             'Tau': 1.,
             'r': np.ones([x.shape[0], 1]),
             'sigma': np.ones([x.shape[0], 1]),
-            'increment_center_x': np.zeros([x.shape[0], 1])
+            'increment_Center_x': np.zeros([x.shape[0], 1])
         }])
         
-        self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, y)
+        self.y_pred_training = np.append(self.y_pred_training, y)
         self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, 0)
     
     def Initialize_Cluster(self, x, z, k, i):
@@ -1882,7 +1976,7 @@ class exTS(base):
             sigma = sigma + self.parameters.loc[row, 'sigma'] 
             Theta = Theta + self.parameters.loc[row, 'Lambda'] * self.parameters.loc[row, 'Theta']
         sigma = sigma / self.parameters.shape[0]
-        NewRow = pd.DataFrame([[z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.InitialPotential, k, 1., np.zeros([x.shape[0], 1]), 1., np.ones([x.shape[0], 1]), sigma, np.zeros([x.shape[0], 1])]], columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Potential', 'TimeCreation', 'NumPoints', 'mu', 'Tau', 'r', 'sigma', 'increment_center_x'])
+        NewRow = pd.DataFrame([[z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.InitialPotential, k, 1., np.zeros([x.shape[0], 1]), 1., np.ones([x.shape[0], 1]), sigma, np.zeros([x.shape[0], 1])]], columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Potential', 'TimeCreation', 'NumPoints', 'mu', 'Tau', 'r', 'sigma', 'increment_Center_x'])
         self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
     
     def Update_Rule_Potential(self, z, i, k):
@@ -1897,15 +1991,15 @@ class exTS(base):
     def Update_Data_Potential(self, z_prev, z, i, k):
         self.Beta += z_prev
         self.Sigma += np.sum(z_prev ** 2)
-        vartheta = np.sum(z ** 2)
+        varTheta = np.sum(z ** 2)
         upsilon = np.sum(z * self.Beta)
-        self.DataPotential = (k - 1) / ((k - 1) * (vartheta + 1) + self.Sigma - 2 * upsilon)
+        self.DataPotential = (k - 1) / ((k - 1) * (varTheta + 1) + self.Sigma - 2 * upsilon)
 
     def Minimum_Distance(self, z):
         distances = np.linalg.norm(self.parameters['Center_Z'].values - z, axis=1)
         return np.min(distances)
                            
-    def Rule_Update(self, x, z):
+    def UpdateRule(self, x, z):
         dist = []
         idx = []
         for row in self.parameters.index:
@@ -1914,10 +2008,10 @@ class exTS(base):
         index = idx[dist.index(min(dist))]
         
         self.parameters.at[index, 'NumPoints'] += 1
-        # Efficiently update increment_center_x and sigma
-        diff_center_x = self.parameters.at[index, 'Center_X'] - x
-        self.parameters.at[index, 'increment_center_x'] += diff_center_x ** 2
-        self.parameters.at[index, 'sigma'] = np.sqrt(self.parameters.loc[index, 'increment_center_x'] / self.parameters.loc[index, 'NumPoints'])
+        # Efficiently update increment_Center_x and sigma
+        diff_Center_x = self.parameters.at[index, 'Center_X'] - x
+        self.parameters.at[index, 'increment_Center_x'] += diff_Center_x ** 2
+        self.parameters.at[index, 'sigma'] = np.sqrt(self.parameters.loc[index, 'increment_Center_x'] / self.parameters.loc[index, 'NumPoints'])
         self.parameters.at[index, 'r'] = self.rho * self.parameters.loc[index, 'r'] + (1 - self.rho) * self.parameters.loc[index, 'sigma']
         
         # Update rule parameters
@@ -1998,11 +2092,11 @@ class Simpl_eTS(base):
         # Evolution of the model rules
         self.rules = []
         # Computing the output in the training phase
-        self.OutputTrainingPhase = np.array([])
+        self.y_pred_training = np.array([])
         # Computing the residual square in the ttraining phase
         self.ResidualTrainingPhase = np.array([])
         # Computing the output in the testing phase
-        self.OutputTestPhase = np.array([])
+        self.y_pred_test = np.array([])
     
     def get_params(self, deep=True):
         return {
@@ -2088,7 +2182,7 @@ class Simpl_eTS(base):
             # Verifying the needing to creating a new rule
             if (self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']) and Delta < 0.5 * self.r:
                 # Update an existing rule
-                self.Rule_Update(x, z)
+                self.UpdateRule(x, z)
             elif self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']:
                 # Create a new rule
                 self.Initialize_Cluster(x, z, k+1, i)
@@ -2111,7 +2205,7 @@ class Simpl_eTS(base):
             )
             
             # Store the output in the array
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             # Compute the square residual of the current iteration
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
         
@@ -2185,7 +2279,7 @@ class Simpl_eTS(base):
             # Verifying the needing to creating a new rule
             if (self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']) and Delta < 0.5 * self.r:
                 # Update an existing rule
-                self.Rule_Update(x, z)
+                self.UpdateRule(x, z)
             elif self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']:
                 # Create a new rule
                 self.Initialize_Cluster(x, z, k+1, i)
@@ -2208,7 +2302,7 @@ class Simpl_eTS(base):
             )
             
             # Store the output in the array
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             # Compute the square residual of the current iteration
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
         
@@ -2242,8 +2336,8 @@ class Simpl_eTS(base):
             )
             
             # Store the output in the array
-            self.OutputTestPhase = np.append(self.OutputTestPhase, Output)
-        return self.OutputTestPhase[-X.shape[0]:]
+            self.y_pred_test = np.append(self.y_pred_test, Output)
+        return self.y_pred_test[-X.shape[0]:]
         
     def Initialize_First_Cluster(self, x, y, z):
         n_features = x.shape[0]
@@ -2257,7 +2351,7 @@ class Simpl_eTS(base):
             "NumPoints": [1.]
         }
         self.parameters = pd.DataFrame(cluster_data)
-        self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, y)
+        self.y_pred_training = np.append(self.y_pred_training, y)
         self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, 0)  # Residual (y - y)^2 is always 0 for the first cluster
     
     def Initialize_Cluster(self, x, z, k, i):
@@ -2282,23 +2376,23 @@ class Simpl_eTS(base):
         self.DataScatter = (1 / ((k - 1) * (z.shape[0]))) * ((k - 1) * sum(z**2) - 2 * sum(z * self.Beta) + self.Gamma)
         
     def Minimum_Distance(self, z):
-        distances = self.parameters['Center_Z'].apply(lambda center: np.linalg.norm(center - z))
+        distances = self.parameters['Center_Z'].apply(lambda Center: np.linalg.norm(Center - z))
         return distances.min()
                               
-    def Rule_Update(self, x, z):
-        distances = self.parameters['Center_Z'].apply(lambda center: np.linalg.norm(center - z))
+    def UpdateRule(self, x, z):
+        distances = self.parameters['Center_Z'].apply(lambda Center: np.linalg.norm(Center - z))
         index = distances.idxmin()
         self.parameters.at[index, 'NumPoints'] += 1
         self.parameters.at[index, 'Center_Z'] = z
         self.parameters.at[index, 'Center_X'] = x
             
     def Update_Num_Points(self, z):
-        distances = self.parameters['Center_Z'].apply(lambda center: np.linalg.norm(center - z))
+        distances = self.parameters['Center_Z'].apply(lambda Center: np.linalg.norm(Center - z))
         index = distances.idxmin()
         self.parameters.at[index, 'NumPoints'] += 1
         
     def Update_Lambda(self, x):
-        self.parameters['Tau'] = self.parameters['Center_X'].apply(lambda center: self.mu(center, x))
+        self.parameters['Tau'] = self.parameters['Center_X'].apply(lambda Center: self.mu(Center, x))
         total_tau = self.parameters['Tau'].sum()
         self.parameters['Lambda'] = self.parameters['Tau'] / total_tau
     
@@ -2369,11 +2463,11 @@ class eTS(base):
         # Evolution of the model rules
         self.rules = []
         # Computing the output in the training phase
-        self.OutputTrainingPhase = np.array([])
+        self.y_pred_training = np.array([])
         # Computing the residual square in the ttraining phase
         self.ResidualTrainingPhase = np.array([])
         # Computing the output in the testing phase
-        self.OutputTestPhase = np.array([])
+        self.y_pred_test = np.array([])
     
     def get_params(self, deep=True):
         return {
@@ -2468,7 +2562,7 @@ class eTS(base):
             DataPotentialRatio = self.DataPotential.item() / self.parameters.loc[IdxMaxPotential, 'Potential']
             
             if self.DataPotential.item() > self.parameters.loc[IdxMaxPotential, 'Potential'] and DataPotentialRatio - Delta / self.r >= 1.:
-                self.Rule_Update(x, z)  # Update an existing rule
+                self.UpdateRule(x, z)  # Update an existing rule
             elif self.DataPotential > self.parameters.loc[IdxMaxPotential, 'Potential']:
                 self.Initialize_Cluster(x, z, i)  # Create a new rule
                 
@@ -2484,7 +2578,7 @@ class eTS(base):
             )
             
             # Store the output in the array
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             # Compute the square residual of the current iteration
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
         
@@ -2563,7 +2657,7 @@ class eTS(base):
             DataPotentialRatio = self.DataPotential.item() / self.parameters.loc[IdxMaxPotential, 'Potential']
             
             if self.DataPotential.item() > self.parameters.loc[IdxMaxPotential, 'Potential'] and DataPotentialRatio - Delta / self.r >= 1.:
-                self.Rule_Update(x, z)  # Update an existing rule
+                self.UpdateRule(x, z)  # Update an existing rule
             elif self.DataPotential > self.parameters.loc[IdxMaxPotential, 'Potential']:
                 self.Initialize_Cluster(x, z, i)  # Create a new rule
                 
@@ -2579,7 +2673,7 @@ class eTS(base):
             )
             
             # Store the output in the array
-            self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, Output)
+            self.y_pred_training = np.append(self.y_pred_training, Output)
             # Compute the square residual of the current iteration
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
     
@@ -2598,13 +2692,13 @@ class eTS(base):
                 " Check X for non-numeric or infinity values"
             )
             
-        # Reshape X to match the dimension of the cluster centers
+        # Reshape X to match the dimension of the cluster Centers
         expected_shape = self.parameters.loc[self.parameters.index[0], 'Center_X'].shape[0]
         if X.shape[1] != expected_shape:
             X = X.reshape(-1, expected_shape)
         
         # Preallocate output array for efficiency
-        OutputTestPhase = np.zeros(X.shape[0])
+        y_pred_test = np.zeros(X.shape[0])
 
         for k in range(X.shape[0]):
             x = X[k, :].reshape(-1, 1)  # Prepare the input vector
@@ -2624,12 +2718,12 @@ class eTS(base):
             )
             
             # Store the output in the array
-            OutputTestPhase[k] = Output
+            y_pred_test[k] = Output
         
         # Update the class variable and return the recent outputs
-        self.OutputTestPhase = np.append(self.OutputTestPhase, OutputTestPhase)
+        self.y_pred_test = np.append(self.y_pred_test, y_pred_test)
             
-        return OutputTestPhase
+        return y_pred_test
         
     def Initialize_First_Cluster(self, x, y, z):
         self.parameters = pd.DataFrame([{
@@ -2641,7 +2735,7 @@ class eTS(base):
             'TimeCreation': 1.0,
             'NumPoints': 1
         }])
-        self.OutputTrainingPhase = np.append(self.OutputTrainingPhase, y)
+        self.y_pred_training = np.append(self.y_pred_training, y)
         self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, 0)
     
     def Initialize_Cluster(self, x, z, i):
@@ -2674,15 +2768,15 @@ class eTS(base):
     def Update_Data_Potential(self, z_prev, z, i):
         self.Beta = self.Beta + z_prev
         self.Sigma = self.Sigma + sum(z_prev**2)
-        vartheta = sum(z**2)
+        varTheta = sum(z**2)
         upsilon = sum(z*self.Beta)
-        self.DataPotential = ((self.k - 1)) / ((self.k - 1) * (vartheta + 1) + self.Sigma - 2*upsilon)
+        self.DataPotential = ((self.k - 1)) / ((self.k - 1) * (varTheta + 1) + self.Sigma - 2*upsilon)
         
     def Minimum_Distance(self, z):
         distances = np.linalg.norm(np.stack(self.parameters['Center_Z']) - z, axis=1)
         return np.min(distances)
                            
-    def Rule_Update(self, x, z):
+    def UpdateRule(self, x, z):
         distances = np.linalg.norm(np.stack(self.parameters['Center_Z']) - z, axis=1)
         index = np.argmin(distances)
         self.parameters.at[index, 'NumPoints'] += 1
@@ -2692,7 +2786,7 @@ class eTS(base):
             
     def Update_Lambda(self, x):
         self.parameters['Tau'] = self.parameters['Center_X'].apply(
-            lambda center_x: self.mu(center_x, x)
+            lambda Center_x: self.mu(Center_x, x)
         )
         total_tau = np.sum(self.parameters['Tau'])
         if total_tau == 0:
