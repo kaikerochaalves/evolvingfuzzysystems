@@ -21,42 +21,6 @@ from scipy.stats.distributions import chi2
 
 class base():
     
-    def show_rules(self):
-        rules = []
-        for i in self.parameters.index:
-            rule = f"Rule {i}"
-            for j in range(self.parameters.loc[i,"Center"].shape[0]):
-                rule = f'{rule} - {self.parameters.loc[i,"Center"][j].item():.2f} ({self.sigma:.2f})'
-            print(rule)
-            rules.append(rule)
-        
-        return rules
-    
-    def plot_gaussian(self, num_points=100):
-        # Set plot-wide configurations only once
-        plt.rc('font', size=30)
-        plt.rc('axes', titlesize=30)
-        
-        # Iterate through rules and attributes
-        for i in self.parameters.index:
-            for j in range(self.parameters.loc[i,"Center"].shape[0]):
-                
-                # Generate x values for smooth curve
-                x_vals = np.linspace(self.parameters.loc[i,"Center"][j] - 3*self.sigma, self.parameters.loc[i,"Center"][j] + 3*self.sigma, num_points)
-                y_vals = np.exp(-((x_vals - self.parameters.loc[i,"Center"][j])**2) / (2 * self.sigma**2))
-                
-                # Create and configure the plot
-                plt.figure(figsize=(19.20, 10.80))
-                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.sigma:.2f})')
-                plt.title(f'Rule {i} - Attribute {j}')
-                plt.xlabel('Values')
-                plt.ylabel('Membership')
-                plt.legend()
-                plt.grid(False)
-                
-                # Display the plot
-                plt.show()
-    
     def n_rules(self):
         return self.rules[-1]
     
@@ -92,7 +56,6 @@ class ePL_KRLS_DISCO(base):
         self.e_utility = e_utility
         
         # Parameters
-        self.parameters = pd.DataFrame(columns = ['Center', 'dictionary', 'nu', 'P', 'Q', 'Theta','arousal_index', 'utility', 'sum_lambda', 'time_creation', 'CompatibilityMeasure', 'old_Center', 'tau', 'lambda'])
         self.parameters_list = []
         # Parameters used to calculate the utility measure
         self.epsilon = []
@@ -126,6 +89,120 @@ class ePL_KRLS_DISCO(base):
     
     def is_numeric_and_finite(self, array):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
+    
+    def show_rules(self):
+        rules = []
+        for i in self.parameters.index:
+            rule = f"Rule {i}"
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                rule = f'{rule} - {self.parameters.loc[i,"Center"][j].item():.2f} ({self.sigma:.2f})'
+            print(rule)
+            rules.append(rule)
+        
+        return rules
+    
+    def plot_rules(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=13)
+        plt.rc('axes', titlesize=15)
+        # plt.figure(figsize=(19.20, 10.80))
+    
+        # Determine the number of rules (rows) and attributes per rule
+        num_rules = len(self.parameters.index)
+        num_attributes = self.parameters.loc[self.parameters.index[0], "Center"].shape[0]
+    
+        # Create a figure with subplots (one per rule)
+        fig, axes = plt.subplots(num_rules, 1, figsize=(8, num_rules * 4), squeeze=False, sharey=True)
+    
+        # Iterate through rules
+        for i, rule_idx in enumerate(self.parameters.index):
+            ax = axes[i, 0]  # Select the subplot for the rule
+            
+            # Iterate through all attributes and plot them in the same subplot
+            for j in range(num_attributes):
+                center = self.parameters.loc[rule_idx, "Center"][j]
+                x_vals = np.linspace(center - 3 * self.sigma, center + 3 * self.sigma, num_points)
+                y_vals = np.exp(-((x_vals - center) ** 2) / (2 * self.sigma ** 2))
+                
+                ax.plot(x_vals, y_vals, linewidth=3, label=f'Attr {j}: μ={center.item():.2f}, σ={self.sigma:.2f}')
+            
+            # Subplot settings
+            ax.set_title(f'Rule {rule_idx}')
+            ax.legend(loc="lower center", ncol=2)
+            ax.grid(False)
+    
+        # Set a single y-label for the entire figure
+        fig.supylabel("Membership")
+        fig.supxlabel("Values")
+    
+        # Adjust layout for better spacing
+        plt.tight_layout()
+        plt.show()
+    
+    # def plot_gaussians_rules(self, num_points=100):
+    #     # Set plot-wide configurations only once
+    #     plt.rc('font', size=20)
+    #     plt.rc('axes', titlesize=20)
+        
+    #     # Determine the number of rules (rows) and attributes per rule (columns)
+    #     num_rules = len(self.parameters.index)
+    #     num_attributes = self.parameters.loc[self.parameters.index[0], "Center"].shape[0]
+    
+    #     # Create a figure with subplots
+    #     fig, axes = plt.subplots(num_rules, num_attributes, figsize=(num_attributes * 6, num_rules * 4))
+        
+    #     # Ensure axes is always a 2D array for easy indexing
+    #     if num_rules == 1:
+    #         axes = np.expand_dims(axes, axis=0)
+    #     if num_attributes == 1:
+    #         axes = np.expand_dims(axes, axis=1)
+    
+    #     # Iterate through rules and attributes
+    #     for i, rule_idx in enumerate(self.parameters.index):
+    #         for j in range(num_attributes):
+    #             ax = axes[i, j]  # Select the correct subplot
+                
+    #             # Generate x values for smooth curve
+    #             center = self.parameters.loc[rule_idx, "Center"][j]
+    #             x_vals = np.linspace(center - 3 * self.sigma, center + 3 * self.sigma, num_points)
+    #             y_vals = np.exp(-((x_vals - center) ** 2) / (2 * self.sigma ** 2))
+                
+    #             # Plot on the corresponding subplot
+    #             ax.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'μ={center.item():.2f}, σ={self.sigma:.2f}')
+    #             ax.set_title(f'Rule {rule_idx} - Attribute {j}')
+    #             ax.set_xlabel('Values')
+    #             ax.set_ylabel('Membership')
+    #             ax.legend()
+    #             ax.grid(False)
+    
+    #     # Adjust layout for better spacing
+    #     plt.tight_layout()
+    #     plt.show()
+    
+    def plot_gaussians(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+        
+        # Iterate through rules and attributes
+        for i in self.parameters.index:
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                
+                # Generate x values for smooth curve
+                x_vals = np.linspace(self.parameters.loc[i,"Center"][j] - 3*self.sigma, self.parameters.loc[i,"Center"][j] + 3*self.sigma, num_points)
+                y_vals = np.exp(-((x_vals - self.parameters.loc[i,"Center"][j])**2) / (2 * self.sigma**2))
+                
+                # Create and configure the plot
+                plt.figure(figsize=(19.20, 10.80))
+                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.sigma:.2f})')
+                plt.title(f'Rule {i} - Attribute {j}')
+                plt.xlabel('Values')
+                plt.ylabel('Membership')
+                plt.legend()
+                plt.grid(False)
+                
+                # Display the plot
+                plt.show()
          
     def fit(self, X, y):
         
@@ -257,26 +334,30 @@ class ePL_KRLS_DISCO(base):
         # Be sure that X is with a correct shape
         X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
+        # Shape of X and y
+        X_shape = X.shape
+        y_shape = y.shape
+        
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
             y = np.array(y, ndmin=1)
             
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y.shape) > 1 and y.shape[1] > 1:
+        if len(y_shape) > 1 and y_shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y.shape) > 1:
+        if len(y_shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X.shape[0] != y.shape[0]:
+        if X_shape[0] != y_shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
@@ -369,12 +450,9 @@ class ePL_KRLS_DISCO(base):
         self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'dictionary', 'nu', 'P', 'Q', 'Theta','arousal_index', 'utility', 'sum_lambda', 'time_creation', 'CompatibilityMeasure', 'old_Center', 'tau', 'lambda', 'lambda'])
             
     def predict(self, X):
-        
-        # Shape of X
-        X_shape = X.shape
-        
+                
         # Correct format X to 2d
-        if len(X_shape) == 1:
+        if len(X.shape) == 1:
             X = X.reshape(-1,1)
             
         # Check if the inputs contain valid numbers
@@ -383,11 +461,14 @@ class ePL_KRLS_DISCO(base):
                 "X contains incompatible values."
                 " Check X for non-numeric or infinity values"
             )
-            
+        
+        # Be sure that X is with a correct shape
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
+        
         # Preallocate space for the outputs for better performance
-        self.y_pred_test = np.zeros((X_shape[0]))
+        self.y_pred_test = np.zeros((X.shape[0]))
             
-        for k in range(X_shape[0]):
+        for k in range(X.shape[0]):
             
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
@@ -420,8 +501,6 @@ class ePL_KRLS_DISCO(base):
             Q = np.linalg.inv(np.ones((1,1)) * (self.lambda1 + kernel_value))
             Theta = Q*y
             self.parameters_list.append([x, x, float(self.sigma), np.ones((1,1)), Q, Theta, 0., 1., 0., 1., k, 1., np.zeros((x.shape[0],1)), 1., 0.])
-            # self.y_pred_training = np.append(self.y_pred_training, y)
-            # self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,0.)
         
         else:
             
@@ -433,19 +512,6 @@ class ePL_KRLS_DISCO(base):
             log_epsilon = math.sqrt(-2 * np.log(max(self.epsilon)))
             nu = float(distance / log_epsilon)
             self.parameters_list.append([x, x, nu, np.ones((1,1)), Q, Theta, 0., 1., 0., 1., k, 1., np.zeros((x.shape[0],1)), 1., 0.])
-        
-    def GaussianKernel(self, v1, v2):
-        
-        n = v1.shape[1]
-        if n == 1:
-            # Compute the kernel distance
-            distance = np.linalg.norm(v1 - v2)**2
-            return np.array([math.exp(-distance / (2 * self.sigma**2))]).reshape(-1,1)
-        else:
-            v3 = np.zeros((n,))
-            for j in range(n):
-                v3[j,] = math.exp(- (np.linalg.norm(v1[:,j].reshape(-1,1) - v2)**2) / (2 * self.sigma**2))
-            return v3.reshape(-1,1)
     
     def CompatibilityMeasure(self, x, i):
         
@@ -490,8 +556,42 @@ class ePL_KRLS_DISCO(base):
         new_Center = old_Center + compatibility_adjustment * (x - old_Center)
         
         self.parameters_list[i][12], self.parameters_list[i][0] = (old_Center, new_Center)
-                       
+            
+    def GaussianKernel(self, v1, v2):
+        
+        n = v1.shape[1]
+        if n == 1:
+            # Compute the kernel distance
+            distance = np.linalg.norm(v1 - v2)**2
+            return np.array([math.exp(-distance / (2 * self.sigma**2))]).reshape(-1,1)
+        else:
+            v3 = np.zeros((n,))
+            for j in range(n):
+                v3[j,] = math.exp(- (np.linalg.norm(v1[:,j].reshape(-1,1) - v2)**2) / (2 * self.sigma**2))
+            return v3.reshape(-1,1)
+    
+    def GaussianMF(self, v1, v2):
+        mf = np.zeros((v1.shape))
+        for j in range(v1.shape[0]):
+            denominator = (2 * self.sigma ** 2)
+            if denominator != 0:
+                mf[j,0] = math.exp( - ( v1[j,0] - v2[j,0] ) ** 2 / denominator )
+            else:
+                mf[j,0] = math.exp( - ( v1[j,0] - v2[j,0] ) ** 2 / 2 )
+        return mf.prod()
+    
+    def Tau(self, x):
+        for row in range(len(self.parameters_list)):
+            tau = self.GaussianMF(x, self.parameters_list[row][0])
+            # Evoid tau with values zero
+            if abs(tau) < (10 ** -100):
+                tau = (10 ** -100)
+            self.parameters_list[row][13] = tau
+    
     def Lambda(self, x):
+        
+        # Update the values of Tau
+        self.Tau(x)
         
         # Compute the sum of tau
         tau_sum = 0
@@ -625,19 +725,18 @@ class ePL_plus(base):
         self.pi = pi
         
         # Model's parameters
-        self.parameters = pd.DataFrame(columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'tau', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
+        self.parameters = pd.DataFrame(columns = ['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'tau', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
+        self.parameters_list = []
         # Monitoring if some rule was excluded
         self.ExcludedRule = 0
         # Evolution of the model rules
         self.rules = []
         # Computing the output in the training phase
-        self.y_pred_training = np.array([])
+        self.y_pred_training = None
         # Computing the residual square in the ttraining phase
-        self.ResidualTrainingPhase = np.array([])
+        self.ResidualTrainingPhase = None
         # Computing the output in the testing phase
-        self.y_pred_test = np.array([])
-        # Computing the residual square in the testing phase
-        self.ResidualTestPhase = np.array([])
+        self.y_pred_test = None
     
     def get_params(self, deep=True):
         return {
@@ -658,25 +757,93 @@ class ePL_plus(base):
     
     def is_numeric_and_finite(self, array):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
+    
+    def plot_rules(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=13)
+        plt.rc('axes', titlesize=15)
+        # plt.figure(figsize=(19.20, 10.80))
+    
+        # Determine the number of rules (rows) and attributes per rule
+        num_rules = len(self.parameters.index)
+        num_attributes = self.parameters.loc[self.parameters.index[0], "Center"].shape[0]
+    
+        # Create a figure with subplots (one per rule)
+        fig, axes = plt.subplots(num_rules, 1, figsize=(8, num_rules * 4), squeeze=False, sharey=True)
+    
+        # Iterate through rules
+        for i, rule_idx in enumerate(self.parameters.index):
+            ax = axes[i, 0]  # Select the subplot for the rule
+            
+            # Iterate through all attributes and plot them in the same subplot
+            for j in range(num_attributes):
+                center = self.parameters.loc[rule_idx, "Center"][j]
+                sigma = self.parameters.loc[rule_idx, "sigma"][j]
+                x_vals = np.linspace(center - 3 * sigma, center + 3 * sigma, num_points)
+                y_vals = np.exp(-((x_vals - center) ** 2) / (2 * sigma ** 2))
+                
+                ax.plot(x_vals, y_vals, linewidth=3, label=f'Attr {j}: μ={center.item():.2f}, σ={sigma.item():.2f}')
+            
+            # Subplot settings
+            ax.set_title(f'Rule {rule_idx}')
+            ax.legend(loc="lower center", ncol=2)
+            ax.grid(False)
+    
+        # Set a single y-label for the entire figure
+        fig.supylabel("Membership")
+        fig.supxlabel("Values")
+    
+        # Adjust layout for better spacing
+        plt.tight_layout()
+        plt.show()
+    
+    def plot_gaussians(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+        
+        # Iterate through rules and attributes
+        for i in self.parameters.index:
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                
+                # Generate x values for smooth curve
+                x_vals = np.linspace(self.parameters.loc[i,"Center"][j] - 3*self.parameters.loc[i,"sigma"][j], self.parameters.loc[i,"Center"][j] + 3*self.parameters.loc[i,"sigma"][j], num_points)
+                y_vals = np.exp(-((x_vals - self.parameters.loc[i,"Center"][j])**2) / (2 * self.parameters.loc[i,"sigma"][j]**2))
+                
+                # Create and configure the plot
+                plt.figure(figsize=(19.20, 10.80))
+                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.parameters.loc[i,"sigma"][j].item():.2f})')
+                plt.title(f'Rule {i} - Attribute {j}')
+                plt.xlabel('Values')
+                plt.ylabel('Membership')
+                plt.legend()
+                plt.grid(False)
+                
+                # Display the plot
+                plt.show()
          
     def fit(self, X, y):
         
+        # Shape of X and y
+        X_shape = X.shape
+        y_shape = y.shape
+        
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y.shape) > 1 and y.shape[1] > 1:
+        if len(y_shape) > 1 and y_shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y.shape) > 1:
+        if len(y_shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X.shape[0] != y.shape[0]:
+        if X_shape[0] != y_shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
@@ -701,50 +868,82 @@ class ePL_plus(base):
         xe = np.insert(x.T, 0, 1, axis=1).T
         # Compute z
         z = np.concatenate((x.T, y[0].reshape(-1,1)), axis=1).T
+        
+        # Preallocate space for the outputs for better performance
+        self.y_pred_training = np.zeros((y_shape))
+        self.ResidualTrainingPhase = np.zeros((y_shape))
+        
+        # Initialize outputs
+        self.y_pred_training[0,] = y[0]
+        self.ResidualTrainingPhase[0,] = 0.
+        
         # Initialize the first rule
-        self.Initialize_First_Cluster(x, y[0], z)
+        self.NewRule(x, y[0], z, True)
+        
+        # Compute the normalized firing level
+        self.Lambda(x)
+        
         # Update the consequent parameters of the fist rule
         self.RLS(x, y[0], xe)
+        
         for k in range(1, X.shape[0]):
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
             # Compute z
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
+            
             # Compute the compatibility measure and the arousal index for all rules
-            for i in self.parameters.index:
+            MinArousal, MaxCompatibility, MaxCompatibilityIdx = (np.inf, 0, 0)
+            for i in range(len(self.parameters_list)):
+                
+                # Update the compatibility measure and the respective arousal index (inside compatibility measure function)
                 self.CompatibilityMeasure(x, i)
-                self.Arousal_Index(i)
-            # Find the minimum arousal index
-            MinArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
-            # Find the maximum compatibility measure
-            MaxCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
-            # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinArousal, 'ArousalIndex'] > self.tau:
-                self.Initialize_Cluster(x, y[k], z, k+1)
+                
+                # Find the minimum arousal index
+                if self.parameters_list[i][3] < MinArousal:
+                    MinArousal = self.parameters_list[i][3]
+            
+                # Find the maximum compatibility measure
+                if self.parameters_list[i][4] > MaxCompatibility:
+                    MaxCompatibility = self.parameters_list[i][4]
+                    MaxCompatibilityIdx = i
+            
+            # Verify the needing to creating a new rule
+            if MinArousal > self.tau:
+                self.NewRule(x, y[k], z, k+1, False)
             else:
-                self.UpdateRule(x, y[k], z, MaxCompatibility)
-            if self.parameters.shape[0] > 1:
-                self.Similarity_Index()
+                self.UpdateRule(x, y[k], z, MaxCompatibilityIdx)
+            
+            # Check if it is possible to remove any rule
+            if len(self.parameters_list) > 1:
+                self.SimilarityIndex()
+                
             # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
-            # Update the consequent parameters of the fist rule
-            self.RLS(x, y[k], xe)
-            # Compute activation degree
-            self.Compute_tau(x)
+            self.rules.append(len(self.parameters_list))
+            
             # Compute the normalized firing level
             self.Lambda(x)
+            
+            # Update the consequent parameters of the fist rule
+            self.RLS(x, y[k], xe)
+            
             # Utility Measure
-            if self.parameters.shape[0] > 1:
+            if len(self.parameters_list) > 1:
                 self.UtilityMeasure(X[k,], k+1)
+                
             # Compute the output
-            Output = 0
-            for row in self.parameters.index:
-                Output = Output + self.parameters.loc[row, 'lambda'] * xe.T @ self.parameters.loc[row, 'Gamma']
-            Output = Output / sum(self.parameters['lambda'])
-            self.y_pred_training = np.append(self.y_pred_training, Output)
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
+            Output = sum([self.parameters_list[row][7] * xe.T @ self.parameters_list[row][2] for row in range(len(self.parameters_list))])
+            
+            # Store the results
+            self.y_pred_training[k,] = Output.item()
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase[k,] = residual ** 2
+            
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter', 'tau'])
     
     def evolve(self, X, y):
         
@@ -790,48 +989,65 @@ class ePL_plus(base):
             )
             
         for k in range(1, X.shape[0]):
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
             # Compute z
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
+            
             # Compute the compatibility measure and the arousal index for all rules
-            for i in self.parameters.index:
+            MinArousal, MaxCompatibility, MaxCompatibilityIdx = (np.inf, 0, 0)
+            for i in range(len(self.parameters_list)):
+                
+                # Update the compatibility measure and the respective arousal index (inside compatibility measure function)
                 self.CompatibilityMeasure(x, i)
-                self.Arousal_Index(i)
-            # Find the minimum arousal index
-            MinArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
-            # Find the maximum compatibility measure
-            MaxCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
-            # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinArousal, 'ArousalIndex'] > self.tau:
-                self.Initialize_Cluster(x, y[k], z, k+1)
+                
+                # Find the minimum arousal index
+                if self.parameters_list[i][3] < MinArousal:
+                    MinArousal = self.parameters_list[i][3]
+            
+                # Find the maximum compatibility measure
+                if self.parameters_list[i][4] > MaxCompatibility:
+                    MaxCompatibility = self.parameters_list[i][4]
+                    MaxCompatibilityIdx = i
+            
+            # Verify the needing to creating a new rule
+            if MinArousal > self.tau:
+                self.NewRule(x, y[k], z, k+1, False)
             else:
-                self.UpdateRule(x, y[k], z, MaxCompatibility)
-            if self.parameters.shape[0] > 1:
-                self.Similarity_Index()
+                self.UpdateRule(x, y[k], z, MaxCompatibilityIdx)
+            
+            # Check if it is possible to remove any rule
+            if len(self.parameters_list) > 1:
+                self.SimilarityIndex()
+                
             # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
-            # Update the consequent parameters of the fist rule
-            self.RLS(x, y[k], xe)
-            # Compute activation degree
-            self.Compute_tau(x)
+            self.rules.append(len(self.parameters_list))
+            
             # Compute the normalized firing level
             self.Lambda(x)
+            
+            # Update the consequent parameters of the fist rule
+            self.RLS(x, y[k], xe)
+            
             # Utility Measure
-            if self.parameters.shape[0] > 1:
+            if len(self.parameters_list) > 1:
                 self.UtilityMeasure(X[k,], k+1)
+                
             # Compute the output
-            Output = 0
-            for row in self.parameters.index:
-                Output = Output + self.parameters.loc[row, 'lambda'] * xe.T @ self.parameters.loc[row, 'Gamma']
-            Output = Output / sum(self.parameters['lambda'])
+            Output = sum([self.parameters_list[row][7] * xe.T @ self.parameters_list[row][2] for row in range(len(self.parameters_list))])
+            
+            # Store the results
             self.y_pred_training = np.append(self.y_pred_training, Output)
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
             
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter', 'tau'])
+            
     def predict(self, X):
-        
+                
         # Correct format X to 2d
         if len(X.shape) == 1:
             X = X.reshape(-1,1)
@@ -842,109 +1058,161 @@ class ePL_plus(base):
                 "X contains incompatible values."
                 " Check X for non-numeric or infinity values"
             )
-            
+        
+        # Reshape X
         X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
+        
+        # Preallocate space for the outputs for better performance
+        self.y_pred_test = np.zeros((X.shape[0]))
+        
         for k in range(X.shape[0]):
+            
             # Prepare the first input vector
             x = X[k,].reshape((1,-1)).T
+            
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
-            # Compute activation degree
-            self.Compute_tau(x)
+                                    
             # Compute the normalized firing level
             self.Lambda(x)
-            # Compute the output
-            Output = 0
-            for row in self.parameters.index:
-                Output = Output + self.parameters.loc[row, 'lambda'] * xe.T @ self.parameters.loc[row, 'Gamma']
-            Output = Output / sum(self.parameters['lambda'])
-            self.y_pred_test = np.append(self.y_pred_test, Output)
-        return self.y_pred_test[-X.shape[0]:]
-        
-    def Initialize_First_Cluster(self, x, y, z):
-        self.parameters = pd.DataFrame([[x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0], 1))]], columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
-        Output = y
-        self.y_pred_training = np.append(self.y_pred_training, Output)
-        self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y)**2)
-    
-    def Initialize_Cluster(self, x, y, z, k):
-        NewRow = pd.DataFrame([[x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0] + 1, 1))]], columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
-        self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
-
-    def CompatibilityMeasure(self, x, i):
-        self.parameters.at[i, 'CompatibilityMeasure'] = (1 - (np.linalg.norm(x - self.parameters.loc[i, 'Center']))/x.shape[0] )
             
-    def Arousal_Index(self, i):
-        self.parameters.at[i, 'ArousalIndex'] = self.parameters.loc[i, 'ArousalIndex'] + self.beta*(1 - self.parameters.loc[i, 'CompatibilityMeasure'] - self.parameters.loc[i, 'ArousalIndex'])
-    
-    def mu(self, x1, x2, row, j):
-        if ( 2 * self.parameters.loc[row, 'sigma'][j,0] ** 2 ) != 0:
-            mu = math.exp( - ( x1 - x2 ) ** 2 / ( 2 * self.parameters.loc[row, 'sigma'][j,0] ** 2 ) )
+            # Compute the output
+            Output = sum([self.parameters_list[row][7] * xe.T @ self.parameters_list[row][2] for row in range(len(self.parameters_list))])
+            
+            # Store the results
+            self.y_pred_test[k,] = Output.item()
+            
+        return self.y_pred_test
+            
+    def NewRule(self, x, y, z, k=1., isFirst = False):
+        
+        if isFirst:
+            
+            # List of parameters
+            self.parameters_list.append([x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0], 1, 0.))])
+        
         else:
-            mu = math.exp( - ( x1 - x2 ) ** 2 / ( 2 ) )
-        return mu
+            
+            # List of parameters
+            self.parameters_list.append([x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0] + 1, 1)), 0.])
+        
+    def CompatibilityMeasure(self, x, i):
+        
+        # The compatibility measure can be lower than 0 if the input data is not normalized
+        # Compute the norm used to calculate the compatibility measure
+        norm_cm = (np.linalg.norm(x - self.parameters_list[i][0]) / x.shape[0])
+        # Compute the compatibility measure without the correlation
+        CompatibilityMeasure = 1 - norm_cm if norm_cm < 1. else 0.
+        
+        # Update the compatibility measure
+        self.parameters_list[i][11] = CompatibilityMeasure
+        
+        # Update the respective arousal index
+        self.Arousal_Index(i)
     
-    def Compute_tau(self, x):
-        for row in self.parameters.index:
-            tau = 1
-            for j in range(x.shape[0]):
-                tau = tau * self.mu(x[j], self.parameters.loc[row, 'Center'][j,0], row, j)
-            # Evoid mtau with values zero
+    def Arousal_Index(self, i):
+        
+        # Atualização para todas as regras no DataFrame
+        self.parameters_list[i][3] += self.beta * (1 - self.parameters_list[i][4] - self.parameters_list[i][3])
+            
+    def GaussianMF(self, v1, v2, sigma):
+        mf = np.zeros((v1.shape))
+        for j in range(v1.shape[0]):
+            denominator = (2 * sigma[j,0] ** 2)
+            if denominator != 0:
+                mf[j,0] = math.exp( - ( v1[j,0] - v2[j,0] ) ** 2 / denominator )
+            else:
+                mf[j,0] = math.exp( - ( v1[j,0] - v2[j,0] ) ** 2 / 2 )
+        return mf.prod()
+    
+    def Tau(self, x):
+        for row in range(len(self.parameters_list)):
+            tau = self.GaussianMF(x, self.parameters_list[row][0], self.parameters_list[row][10])
+            # Evoid tau with values zero
             if abs(tau) < (10 ** -100):
                 tau = (10 ** -100)
-            self.parameters.at[row, 'tau'] = tau
+            self.parameters_list[row][15] = tau
             
     def Lambda(self, x):
-        for row in self.parameters.index:
-            self.parameters.at[row, 'lambda'] = self.parameters.loc[row, 'tau'] / sum(self.parameters['tau'])
-            self.parameters.at[row, 'SumLambda'] = self.parameters.loc[row, 'SumLambda'] + self.parameters.loc[row, 'lambda']
+        
+        # Update the values of Tau
+        self.Tau(x)
+        
+        # Compute the sum of tau
+        tau_sum = 0
+        for i in range(len(self.parameters_list)):
+            tau_sum += self.parameters_list[i][15]
             
-    def UtilityMeasure(self, x, k):
-        # Calculating the utility
-        remove = []
-        for i in self.parameters.index:
-            if (k - self.parameters.loc[i, 'TimeCreation']) == 0:
-                self.parameters.at[i, 'Utility'] = 1
-            else:
-                self.parameters.at[i, 'Utility'] = self.parameters.loc[i, 'SumLambda'] / (k - self.parameters.loc[i, 'TimeCreation'])
-            if self.parameters.loc[i, 'Utility'] < self.e_utility:
-                remove.append(i)
-        if len(remove) > 0:    
-            self.parameters = self.parameters.drop(remove)  
+        for row in range(len(self.parameters_list)):
+            self.parameters_list[row][7] = self.parameters_list[row][15] / tau_sum
+            self.parameters_list[row][8] += self.parameters_list[row][7]
            
     def UpdateRule(self, x, y, z, i):
         # Update the number of observations in the rule
-        self.parameters.loc[i, 'NumObservations'] = self.parameters.loc[i, 'NumObservations'] + 1
+        self.parameters_list[i][6] += 1
         # Update the cluster Center
-        self.parameters.at[i, 'Center'] = self.parameters.loc[i, 'Center'] + (self.alpha*(self.parameters.loc[i, 'CompatibilityMeasure'])**(1 - self.alpha))*(x - self.parameters.loc[i, 'Center'])
+        self.parameters_list[i][0] += (self.alpha*(self.parameters_list[i][4])**(1 - self.alpha))*(x - self.parameters_list[i][0])
         # Update the cluster support
-        self.parameters.at[i, 'support'] = self.parameters.loc[i, 'support'] + 1
+        self.parameters_list[i][11] += 1
         # Update the cluster diff z
-        self.parameters.at[i, 'diff_z'] = self.parameters.loc[i, 'diff_z'] + ( self.parameters.loc[i, 'z'] - z ) ** 2
+        self.parameters_list[i][13] += ( self.parameters_list[i][12] - z ) ** 2
         # Update the cluster local scatter
-        self.parameters.at[i, 'local_scatter'] = (self.parameters.loc[i, 'diff_z'] / ( self.parameters.loc[i, 'support'] - 1 )) ** (1/2)
+        self.parameters_list[i][14] = (self.parameters_list[i][13] / ( self.parameters_list[i][11] - 1 )) ** (1/2)
         # Update the cluster radius
-        self.parameters.at[i, 'sigma'] = self.pi * self.parameters.loc[i, 'sigma'] + ( 1 - self.pi) * self.parameters.at[i, 'local_scatter']
+        self.parameters_list[i][10] = self.pi * self.parameters_list[i][10] + ( 1 - self.pi) * self.parameters_list[i][14]
+    
+    def UtilityMeasure(self, x, k):
         
-    def Similarity_Index(self):
-        l = []
-        for i in range(self.parameters.shape[0] - 1):
-			#if i < len(self.clusters) - 1:
-            for j in range(i + 1, self.parameters.shape[0]):
-                vi, vj = self.parameters.iloc[i,0], self.parameters.iloc[j,0]
+        # List of rows to remove
+        remove = []
+        for i in range(len(self.parameters_list)):
+            
+            # Compute how long ago the rule was created
+            time_diff = k - self.parameters_list[i][5]
+            
+            # Compute the utilit measure
+            self.parameters_list[i][9] = self.parameters_list[i][8] / time_diff if time_diff != 0 else 1
+            
+            # Find rules with utility lower than a threshold
+            if self.parameters_list[i][9] < self.e_utility:
+                remove.append(i)
+                    
+        # Remove old rules
+        if not remove:
+            
+            self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
+
+            # Inform that a rules was excluded and create no more rules
+            self.ExcludedRule = 1
+            
+    def SimilarityIndex(self):
+        
+        # List of rows to remove
+        remove = []
+        
+        # Look for indexes to remove
+        for i in range(len(self.parameters_list) - 1):
+            for j in range(i + 1, len(self.parameters_list)):
+                vi, vj = (self.parameters_list[i][0], self.parameters_list[j][0])
                 compat_ij = (1 - ((np.linalg.norm(vi - vj))))
                 if compat_ij >= self.lambda1:
-                    self.parameters.at[self.parameters.index[j], 'Center'] = ( (self.parameters.loc[self.parameters.index[i], 'Center'] + self.parameters.loc[self.parameters.index[j], 'Center']) / 2)
-                    self.parameters.at[self.parameters.index[j], 'P'] = ( (self.parameters.loc[self.parameters.index[i], 'P'] + self.parameters.loc[self.parameters.index[j], 'P']) / 2)
-                    self.parameters.at[self.parameters.index[j], 'Gamma'] = np.array((self.parameters.loc[self.parameters.index[i], 'Gamma'] + self.parameters.loc[self.parameters.index[j], 'Gamma']) / 2)
-                    l.append(int(i))
+                    self.parameters_list[j][0] = ( (self.parameters_list[i][0] + self.parameters_list[j][0]) / 2)
+                    self.parameters_list[j][1] = ( (self.parameters_list[i][1] + self.parameters_list[j][1]) / 2)
+                    self.parameters_list[j][2] = np.array((self.parameters_list[i][2] + self.parameters_list[j][2]) / 2)
+                    remove.append(int(i))
 
-        self.parameters.drop(index=self.parameters.index[l,], inplace=True)
+        # Remove rules
+        if not remove:
+            
+            self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
+    
+            # Inform that a rules was excluded
+            self.ExcludedRule = 1
 
     def RLS(self, x, y, xe):
-        for row in self.parameters.index:
-            self.parameters.at[row, 'P'] = self.parameters.loc[row, 'P'] - (( self.parameters.loc[row, 'lambda'] * self.parameters.loc[row, 'P'] @ xe @ xe.T @ self.parameters.loc[row, 'P'])/(1 + self.parameters.loc[row, 'lambda'] * xe.T @ self.parameters.loc[row, 'P'] @ xe))
-            self.parameters.at[row, 'Gamma'] = self.parameters.loc[row, 'Gamma'] + (self.parameters.loc[row, 'P'] @ xe * self.parameters.loc[row, 'lambda'] * (y - xe.T @ self.parameters.loc[row, 'Gamma']))
+        for row in range(len(self.parameters_list)):
+            self.parameters_list[row][1] -= (( self.parameters_list[row][7] * self.parameters_list[row][1] @ xe @ xe.T @ self.parameters_list[row][1])/(1 + self.parameters_list[row][7] * xe.T @ self.parameters_list[row][1] @ xe))
+            self.parameters_list[row][2] += (self.parameters_list[row][1] @ xe * self.parameters_list[row][7] * (y - xe.T @ self.parameters_list[row][2]))
             
             
 class eMG(base):
@@ -971,7 +1239,7 @@ class eMG(base):
         self.maximum_rules = maximum_rules
         
         # Model's parameters
-        self.parameters = pd.DataFrame(columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Gamma', 'Q', 'LocalOutput'])
+        self.parameters = pd.DataFrame(columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'LocalOutput'])
         # Defining the initial dispersion matrix
         self.Sigma_init = np.array([])
         # Defining the threshold for the compatibility measure
@@ -1061,7 +1329,7 @@ class eMG(base):
             for i in self.parameters.index:
                 self.CompatibilityMeasure(X[k,], i)
                 # Local output
-                self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Gamma']
+                self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Theta']
                 Output = Output + self.parameters.at[i, 'LocalOutput'] * self.parameters.loc[i, 'CompatibilityMeasure']
                 sumCompatibility = sumCompatibility + self.parameters.loc[i, 'CompatibilityMeasure']
             # Global output
@@ -1145,7 +1413,7 @@ class eMG(base):
             for i in self.parameters.index:
                 self.CompatibilityMeasure(X[k,], i)
                 # Local output
-                self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Gamma']
+                self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Theta']
                 Output = Output + self.parameters.at[i, 'LocalOutput'] * self.parameters.loc[i, 'CompatibilityMeasure']
                 sumCompatibility = sumCompatibility + self.parameters.loc[i, 'CompatibilityMeasure']
             # Global output
@@ -1201,7 +1469,7 @@ class eMG(base):
             for i in self.parameters.index:
                 self.CompatibilityMeasure(X[k,], i)
                 # Local output
-                self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Gamma']
+                self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Theta']
                 Output = Output + self.parameters.at[i, 'LocalOutput'] * self.parameters.loc[i, 'CompatibilityMeasure']
                 sumCompatibility = sumCompatibility + self.parameters.loc[i, 'CompatibilityMeasure']
             # Global output
@@ -1279,14 +1547,14 @@ class eMG(base):
     def Initialize_First_Cluster(self, x, y):
         x = x.reshape(1, x.shape[0])
         Q = self.omega * np.eye(x.shape[1] + 1)
-        Gamma = np.insert(np.zeros((x.shape[1],1)), 0, y, axis=0)
-        self.parameters = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Gamma, Q, 0.]], columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Gamma', 'Q', 'LocalOutput'])
+        Theta = np.insert(np.zeros((x.shape[1],1)), 0, y, axis=0)
+        self.parameters = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Theta, Q, 0.]], columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'LocalOutput'])
     
     def Initialize_Cluster(self, x, y):
         x = x.reshape(1, x.shape[0])
         Q = self.omega * np.eye(x.shape[1] + 1)
-        Gamma = np.insert(np.zeros((x.shape[1],1)), 0, y, axis=0)
-        NewRow = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Gamma, Q, 0.]], columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Gamma', 'Q', 'LocalOutput'])
+        Theta = np.insert(np.zeros((x.shape[1],1)), 0, y, axis=0)
+        NewRow = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Theta, Q, 0.]], columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'LocalOutput'])
         self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
     
     def M_Distance(self, x, i):
@@ -1325,7 +1593,7 @@ class eMG(base):
         
     def Update_Consequent_Parameters(self, xk, y, i):
         self.parameters.at[i, 'Q'] = self.parameters.loc[i, 'Q'] - ((self.parameters.loc[i, 'CompatibilityMeasure'] * self.parameters.loc[i, 'Q'] @ xk.T @ xk @ self.parameters.loc[i, 'Q']) / (1 + self.parameters.loc[i, 'CompatibilityMeasure'] * xk @ self.parameters.loc[i, 'Q'] @ xk.T))
-        self.parameters.at[i, 'Gamma'] = self.parameters.loc[i, 'Gamma'] + self.parameters.loc[i, 'Q'] @ xk.T * self.parameters.loc[i, 'CompatibilityMeasure'] * (y - xk @ self.parameters.loc[i, 'Gamma'])
+        self.parameters.at[i, 'Theta'] = self.parameters.loc[i, 'Theta'] + self.parameters.loc[i, 'Q'] @ xk.T * self.parameters.loc[i, 'CompatibilityMeasure'] * (y - xk @ self.parameters.loc[i, 'Theta'])
                         
     def Merging_Rules(self, x, MaxCompatibility):
         for i in self.parameters.index:
@@ -1336,7 +1604,7 @@ class eMG(base):
                     self.parameters.at[MaxCompatibility, 'Center'] = np.mean(np.array([self.parameters.loc[i, 'Center'], self.parameters.loc[MaxCompatibility, 'Center']]), axis=0)
                     self.parameters.at[MaxCompatibility, 'Sigma'] = [self.Sigma_init]
                     self.parameters.at[MaxCompatibility, 'Q'] = self.omega * np.eye(x.shape[0] + 1)
-                    self.parameters.at[MaxCompatibility, 'Gamma'] = (self.parameters.loc[MaxCompatibility, 'Gamma'] * self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'Gamma'] * self.parameters.loc[i, 'CompatibilityMeasure']) / (self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'CompatibilityMeasure'])
+                    self.parameters.at[MaxCompatibility, 'Theta'] = (self.parameters.loc[MaxCompatibility, 'Theta'] * self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'Theta'] * self.parameters.loc[i, 'CompatibilityMeasure']) / (self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'CompatibilityMeasure'])
                     self.parameters = self.parameters.drop(i)
                     # Stop creating new rules when the model exclude the first rule
                     self.ExcludedRule = 1
@@ -1367,7 +1635,7 @@ class ePL(base):
         self.s = s
         self.r = r
         
-        self.parameters = pd.DataFrame(columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
+        self.parameters = pd.DataFrame(columns = ['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
         # Monitoring if some rule was excluded
         self.ExcludedRule = 0
         # Evolution of the model rules
@@ -1468,7 +1736,7 @@ class ePL(base):
             else:
                 self.UpdateRule(x, y[k], MaxCompatibility)
             if self.parameters.shape[0] > 1:
-                self.Similarity_Index()
+                self.SimilarityIndex()
                 
             # Compute the number of rules at the current iteration
             self.rules.append(self.parameters.shape[0])
@@ -1479,8 +1747,8 @@ class ePL(base):
             
             # Compute the output
             mu = np.array(self.parameters['mu'])
-            Gamma = np.stack(self.parameters['Gamma'].values, axis=2)  # Stack Gamma vectors into a 3D array
-            weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Gamma)
+            Theta = np.stack(self.parameters['Theta'].values, axis=2)  # Stack Theta vectors into a 3D array
+            weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Theta)
             Output = np.sum(weighted_outputs) / np.sum(mu)
             
             self.y_pred_training = np.append(self.y_pred_training, Output)
@@ -1551,7 +1819,7 @@ class ePL(base):
             else:
                 self.UpdateRule(x, y[k], MaxCompatibility)
             if self.parameters.shape[0] > 1:
-                self.Similarity_Index()
+                self.SimilarityIndex()
                 
             # Compute the number of rules at the current iteration
             self.rules.append(self.parameters.shape[0])
@@ -1562,8 +1830,8 @@ class ePL(base):
             
             # Compute the output
             mu = np.array(self.parameters['mu'])
-            Gamma = np.stack(self.parameters['Gamma'].values, axis=2)  # Stack Gamma vectors into a 3D array
-            weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Gamma)
+            Theta = np.stack(self.parameters['Theta'].values, axis=2)  # Stack Theta vectors into a 3D array
+            weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Theta)
             Output = np.sum(weighted_outputs) / np.sum(mu)
             
             self.y_pred_training = np.append(self.y_pred_training, Output)
@@ -1595,8 +1863,8 @@ class ePL(base):
             
             # Compute the output
             mu = np.array(self.parameters['mu'])
-            Gamma = np.stack(self.parameters['Gamma'].values, axis=2)  # Stack Gamma vectors into a 3D array
-            weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Gamma)
+            Theta = np.stack(self.parameters['Theta'].values, axis=2)  # Stack Theta vectors into a 3D array
+            weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Theta)
             Output = np.sum(weighted_outputs) / np.sum(mu)
             
             self.y_pred_test = np.append(self.y_pred_test, Output)
@@ -1604,13 +1872,13 @@ class ePL(base):
         return self.y_pred_test[-X.shape[0]:]
         
     def Initialize_First_Cluster(self, x, y):
-        self.parameters = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 1.]], columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
+        self.parameters = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 1.]], columns = ['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
         Output = y
         self.y_pred_training = np.append(self.y_pred_training, Output)
         self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y)**2)
     
     def Initialize_Cluster(self, x, y, k):
-        NewRow = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 1.]], columns = ['Center', 'P', 'Gamma', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
+        NewRow = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 1.]], columns = ['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
         self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
 
     def CompatibilityMeasure(self, x, i):
@@ -1630,7 +1898,7 @@ class ePL(base):
         self.parameters.at[i, 'Center'] += (self.alpha*(self.parameters.loc[i, 'CompatibilityMeasure'])**(1 - self.alpha))*(x - self.parameters.loc[i, 'Center'])
           
         
-    def Similarity_Index(self):
+    def SimilarityIndex(self):
         for i in range(self.parameters.shape[0] - 1):
             l = []
 			#if i < len(self.clusters) - 1:
@@ -1640,7 +1908,7 @@ class ePL(base):
                 if compat_ij >= self.lambda1:
                     self.parameters.at[self.parameters.index[j], 'Center'] = ( (self.parameters.loc[self.parameters.index[i], 'Center'] + self.parameters.loc[self.parameters.index[j], 'Center']) / 2)
                     self.parameters.at[self.parameters.index[j], 'P'] = ( (self.parameters.loc[self.parameters.index[i], 'P'] + self.parameters.loc[self.parameters.index[j], 'P']) / 2)
-                    self.parameters.at[self.parameters.index[j], 'Gamma'] = np.array((self.parameters.loc[self.parameters.index[i], 'Gamma'] + self.parameters.loc[self.parameters.index[j], 'Gamma']) / 2)
+                    self.parameters.at[self.parameters.index[j], 'Theta'] = np.array((self.parameters.loc[self.parameters.index[i], 'Theta'] + self.parameters.loc[self.parameters.index[j], 'Theta']) / 2)
                     l.append(int(i))
 
         self.parameters.drop(index=self.parameters.index[l,], inplace=True)
@@ -1648,7 +1916,7 @@ class ePL(base):
     def RLS(self, x, y, xe):
         for row in self.parameters.index:
             self.parameters.at[row, 'P'] -= ((self.parameters.loc[row, 'P'] @ xe @ xe.T @ self.parameters.loc[row, 'P'])/(1 + xe.T @ self.parameters.loc[row, 'P'] @ xe))
-            self.parameters.at[row, 'Gamma'] += (self.parameters.loc[row, 'P'] @ xe * (y - xe.T @ self.parameters.loc[row, 'Gamma']))
+            self.parameters.at[row, 'Theta'] += (self.parameters.loc[row, 'P'] @ xe * (y - xe.T @ self.parameters.loc[row, 'Theta']))
 
 
 class exTS(base):
@@ -2372,8 +2640,8 @@ class Simpl_eTS(base):
     
     def Update_Data_Scatter(self, z_prev, z, k):
         self.Beta += z_prev
-        self.Gamma = self.Sigma + sum(z_prev**2)
-        self.DataScatter = (1 / ((k - 1) * (z.shape[0]))) * ((k - 1) * sum(z**2) - 2 * sum(z * self.Beta) + self.Gamma)
+        self.Theta = self.Sigma + sum(z_prev**2)
+        self.DataScatter = (1 / ((k - 1) * (z.shape[0]))) * ((k - 1) * sum(z**2) - 2 * sum(z * self.Beta) + self.Theta)
         
     def Minimum_Distance(self, z):
         distances = self.parameters['Center_Z'].apply(lambda Center: np.linalg.norm(Center - z))
