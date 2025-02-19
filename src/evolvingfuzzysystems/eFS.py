@@ -721,6 +721,17 @@ class ePL_plus(base):
     def is_numeric_and_finite(self, array):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
     
+    def show_rules(self):
+        rules = []
+        for i in self.parameters.index:
+            rule = f"Rule {i}"
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                rule = f'{rule} - {self.parameters.loc[i,"Center"][j].item():.2f} ({self.parameters.loc[i, "sigma"][j].item():.2f})'
+            print(rule)
+            rules.append(rule)
+        
+        return rules
+    
     def plot_rules(self, num_points=100):
         
         # Warning for this function
@@ -1237,6 +1248,17 @@ class eMG(base):
     
     def is_numeric_and_finite(self, array):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
+    
+    def show_rules(self):
+        rules = []
+        for i in self.parameters.index:
+            rule = f"Rule {i}"
+            for j in range(self.parameters.loc[i,"Center"].shape[1]):
+                rule = f'{rule} - {self.parameters.loc[i, "Center"][0,j]:.2f} ({self.parameters.loc[i, "Sigma"][j,j]**(1/2):.2f})'
+            print(rule)
+            rules.append(rule)
+        
+        return rules
     
     def plot_rules(self, num_points=100):
         # Set plot-wide configurations only once
@@ -1773,7 +1795,11 @@ class eMG(base):
         self.parameters_list[i][6] += self.parameters_list[i][7] @ xk.T * self.parameters_list[i][2]
 
 class ePL(base):
-    def __init__(self, alpha = 0.001, beta = 0.1, lambda1 = 0.35, tau = None, s = 1000, r = 0.25):
+    
+    def __init__(self, alpha = 0.001, beta = 0.5, lambda1 = 0.35, tau = None, s = 1000, sigma = 0.25):
+        
+        # Call __init__ of the base class
+        super().__init__()
         
         if not (0 <= alpha <= 1):
             raise ValueError("alpha must be a float between 0 and 1.")
@@ -1785,8 +1811,8 @@ class ePL(base):
             raise ValueError("tau must be a float between 0 and 1, or None.")
         if not (isinstance(s, int) and s > 0):
             raise ValueError("s must be a positive integer.")
-        if not (r > 0):
-            raise ValueError("r must be a positive float.")
+        if not (sigma > 0):
+            raise ValueError("sigma must be a positive float.")
             
         # Hyperparameters
         self.alpha = alpha
@@ -1794,10 +1820,8 @@ class ePL(base):
         self.lambda1 = lambda1
         self.tau = beta if tau is None else tau
         self.s = s
-        self.r = r
+        self.sigma = sigma
         
-        self.parameters = pd.DataFrame(columns = ['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
-    
     def get_params(self, deep=True):
         return {
             'alpha': self.alpha,
@@ -1805,7 +1829,7 @@ class ePL(base):
             'lambda1': self.lambda1,
             'tau': self.tau,
             's': self.s,
-            'r': self.r,
+            'sigma': self.sigma,
         }
 
     def set_params(self, **params):
@@ -1815,25 +1839,103 @@ class ePL(base):
     
     def is_numeric_and_finite(self, array):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
+    
+    def show_rules(self):
+        rules = []
+        for i in self.parameters.index:
+            rule = f"Rule {i}"
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                rule = f'{rule} - {self.parameters.loc[i, "Center"][j].item():.2f} ({self.sigma:.2f})'
+            print(rule)
+            rules.append(rule)
+        
+        return rules
+    
+    def plot_rules(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=13)
+        plt.rc('axes', titlesize=15)
+        # plt.figure(figsize=(19.20, 10.80))
+    
+        # Determine the number of rules (rows) and attributes per rule
+        num_rules = len(self.parameters.index)
+        num_attributes = self.parameters.loc[self.parameters.index[0], "Center"].shape[0]
+    
+        # Create a figure with subplots (one per rule)
+        fig, axes = plt.subplots(num_rules, 1, figsize=(8, num_rules * 4), squeeze=False, sharey=True)
+    
+        # Iterate through rules
+        for i, rule_idx in enumerate(self.parameters.index):
+            ax = axes[i, 0]  # Select the subplot for the rule
+            
+            # Iterate through all attributes and plot them in the same subplot
+            for j in range(num_attributes):
+                center = self.parameters.loc[rule_idx, "Center"][j]
+                x_vals = np.linspace(center - 3 * self.sigma, center + 3 * self.sigma, num_points)
+                y_vals = np.exp(-((x_vals - center) ** 2) / (2 * self.sigma ** 2))
+                
+                ax.plot(x_vals, y_vals, linewidth=3, label=f'Attr {j}: μ={center.item():.2f}, σ={self.sigma:.2f}')
+            
+            # Subplot settings
+            ax.set_title(f'Rule {rule_idx}')
+            ax.legend(loc="lower center", ncol=2)
+            ax.grid(False)
+    
+        # Set a single y-label for the entire figure
+        fig.supylabel("Membership")
+        fig.supxlabel("Values")
+    
+        # Adjust layout for better spacing
+        plt.tight_layout()
+        plt.show()
+    
+    def plot_gaussians(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+        
+        # Iterate through rules and attributes
+        for i in self.parameters.index:
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                
+                # Generate x values for smooth curve
+                x_vals = np.linspace(self.parameters.loc[i,"Center"][j] - 3*self.sigma, self.parameters.loc[i,"Center"][j] + 3*self.sigma, num_points)
+                y_vals = np.exp(-((x_vals - self.parameters.loc[i,"Center"][j])**2) / (2 * self.sigma**2))
+                
+                # Create and configure the plot
+                plt.figure(figsize=(19.20, 10.80))
+                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.sigma:.2f})')
+                plt.title(f'Rule {i} - Attribute {j}')
+                plt.xlabel('Values')
+                plt.ylabel('Membership')
+                plt.legend()
+                plt.grid(False)
+                
+                # Display the plot
+                plt.show()
          
     def fit(self, X, y):
         
+        # Shape of X and y
+        X_shape = X.shape
+        y_shape = y.shape
+        
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y.shape) > 1 and y.shape[1] > 1:
+        if len(y_shape) > 1 and y_shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y.shape) > 1:
+        if len(y_shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X.shape[0] != y.shape[0]:
+        if X_shape[0] != y_shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
@@ -1857,8 +1959,17 @@ class ePL(base):
         # Compute xe
         xe = np.insert(x.T, 0, 1, axis=1).T
         
+        # Preallocate space for the outputs for better performance
+        self.y_pred_training = np.zeros((y_shape))
+        self.ResidualTrainingPhase = np.zeros((y_shape))
+        
+        # Initialize outputs
+        self.y_pred_training[0,] = y[0]
+        self.ResidualTrainingPhase[0,] = 0.
+        
         # Initialize the first rule
-        self.Initialize_First_Cluster(x, y[0])
+        self.NewRule(x, y[0], 0, True)
+                
         # Update the consequent parameters of the fist rule
         self.RLS(x, y[0], xe)
         
@@ -1870,38 +1981,48 @@ class ePL(base):
             xe = np.insert(x.T, 0, 1, axis=1).T
             
             # Compute the compatibility measure and the arousal index for all rules
-            for i in self.parameters.index:
+            MinArousal, MaxCompatibility, MaxCompatibilityIdx = (np.inf, 0, 0)
+            for i in range(len(self.parameters_list)):
+                
+                # Update the compatibility measure and the respective arousal index (inside compatibility measure function)
                 self.CompatibilityMeasure(x, i)
-                self.Arousal_Index(i)
+                
+                # Find the minimum arousal index
+                if self.parameters_list[i][3] < MinArousal:
+                    MinArousal = self.parameters_list[i][3]
             
-            # Find the minimum arousal index
-            MinArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
-            # Find the maximum compatibility measure
-            MaxCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
+                # Find the maximum compatibility measure
+                if self.parameters_list[i][4] > MaxCompatibility:
+                    MaxCompatibility = self.parameters_list[i][4]
+                    MaxCompatibilityIdx = i
             
             # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinArousal, 'ArousalIndex'] > self.tau:
-                self.Initialize_Cluster(x, y[k], k+1)
+            if MinArousal > self.tau:
+                self.NewRule(x, y[k], k+1, False)
             else:
-                self.UpdateRule(x, y[k], MaxCompatibility)
-            if self.parameters.shape[0] > 1:
+                self.UpdateRule(x, y[k], MaxCompatibilityIdx)
+            if len(self.parameters_list) > 1:
                 self.SimilarityIndex()
                 
             # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
+            self.rules.append(len(self.parameters_list))
+            
             # Update the consequent parameters of the fist rule
             self.RLS(x, y[k], xe)
-            # Compute firing degree
-            self.mu(x)
+            
+            # Compute the normalized firing degree
+            self.Lambda(x)
             
             # Compute the output
-            mu = np.array(self.parameters['mu'])
-            Theta = np.stack(self.parameters['Theta'].values, axis=2)  # Stack Theta vectors into a 3D array
-            weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Theta)
-            Output = np.sum(weighted_outputs) / np.sum(mu)
+            Output = sum([self.parameters_list[row][7] * xe.T @ self.parameters_list[row][2] for row in range(len(self.parameters_list))])
             
-            self.y_pred_training = np.append(self.y_pred_training, Output)
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
+            # Store the results
+            self.y_pred_training[k,] = Output.item()
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase[k,] = residual ** 2
+            
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'Lambda', 'Tau'])
     
     def evolve(self, X, y):
         
@@ -1946,46 +2067,57 @@ class ePL(base):
                 " Check y for non-numeric or infinity values"
             )
         
-        for k in range(1, X.shape[0]):
+        for k in range(X.shape[0]):
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
             
             # Compute the compatibility measure and the arousal index for all rules
-            for i in self.parameters.index:
-                self.CompatibilityMeasure(x, i)
-                self.Arousal_Index(i)
+            MinArousal, MaxCompatibility, MaxCompatibilityIdx = (np.inf, 0, 0)
+            for i in range(len(self.parameters_list)):
                 
-            # Find the minimum arousal index
-            MinArousal = self.parameters['ArousalIndex'].astype('float64').idxmin()
-            # Find the maximum compatibility measure
-            MaxCompatibility = self.parameters['CompatibilityMeasure'].astype('float64').idxmax()
+                # Update the compatibility measure and the respective arousal index (inside compatibility measure function)
+                self.CompatibilityMeasure(x, i)
+                
+                # Find the minimum arousal index
+                if self.parameters_list[i][3] < MinArousal:
+                    MinArousal = self.parameters_list[i][3]
+            
+                # Find the maximum compatibility measure
+                if self.parameters_list[i][4] > MaxCompatibility:
+                    MaxCompatibility = self.parameters_list[i][4]
+                    MaxCompatibilityIdx = i
             
             # Verifying the needing to creating a new rule
-            if self.parameters.loc[MinArousal, 'ArousalIndex'] > self.tau:
-                self.Initialize_Cluster(x, y[k], k+1)
+            if MinArousal > self.tau:
+                self.NewRule(x, y[k], k+1, False)
             else:
-                self.UpdateRule(x, y[k], MaxCompatibility)
-            if self.parameters.shape[0] > 1:
+                self.UpdateRule(x, y[k], MaxCompatibilityIdx)
+            if len(self.parameters_list) > 1:
                 self.SimilarityIndex()
                 
             # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
+            self.rules.append(len(self.parameters_list))
+            
             # Update the consequent parameters of the fist rule
             self.RLS(x, y[k], xe)
-            # Compute firing degree
-            self.mu(x)
+            
+            # Compute the normalized firing degree
+            self.Lambda(x)
             
             # Compute the output
-            mu = np.array(self.parameters['mu'])
-            Theta = np.stack(self.parameters['Theta'].values, axis=2)  # Stack Theta vectors into a 3D array
-            weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Theta)
-            Output = np.sum(weighted_outputs) / np.sum(mu)
+            Output = sum([self.parameters_list[row][7] * xe.T @ self.parameters_list[row][2] for row in range(len(self.parameters_list))])
             
+            # Store the results
             self.y_pred_training = np.append(self.y_pred_training, Output)
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
-            
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, residual**2)
+        
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'Lambda', 'Tau'])
+    
     def predict(self, X):
         
         # Correct format X to 2d
@@ -1998,78 +2130,136 @@ class ePL(base):
                 "X contains incompatible values."
                 " Check X for non-numeric or infinity values"
             )
-            
+        
+        # Reshape X
         X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
+        
+        # Preallocate space for the outputs for better performance
+        self.y_pred_test = np.zeros((X.shape[0]))
         
         for k in range(X.shape[0]):
             
             # Prepare the first input vector
             x = X[k,].reshape((1,-1)).T
+            
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
-            # Compute firing degree
-            self.mu(x)
+            
+            # Compute the normalized firing level
+            self.Lambda(x)
             
             # Compute the output
-            mu = np.array(self.parameters['mu'])
-            Theta = np.stack(self.parameters['Theta'].values, axis=2)  # Stack Theta vectors into a 3D array
-            weighted_outputs = mu * np.einsum('ij,jik->i', xe.T, Theta)
-            Output = np.sum(weighted_outputs) / np.sum(mu)
+            Output = sum([self.parameters_list[row][7] * xe.T @ self.parameters_list[row][2] for row in range(len(self.parameters_list))])
             
-            self.y_pred_test = np.append(self.y_pred_test, Output)
+            # Store the results
+            self.y_pred_test[k,] = Output.item()
             
-        return self.y_pred_test[-X.shape[0]:]
+        return self.y_pred_test
+    
+    def NewRule(self, x, y, k=1., isFirst = False):
         
-    def Initialize_First_Cluster(self, x, y):
-        self.parameters = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 1.]], columns = ['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
-        Output = y
-        self.y_pred_training = np.append(self.y_pred_training, Output)
-        self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y)**2)
-    
-    def Initialize_Cluster(self, x, y, k):
-        NewRow = pd.DataFrame([[x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 1.]], columns = ['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
-        self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
-
-    def CompatibilityMeasure(self, x, i):
-        self.parameters.at[i, 'CompatibilityMeasure'] = (1 - (np.linalg.norm(x - self.parameters.loc[i, 'Center']))/x.shape[0] )
+        if isFirst:
             
-    def Arousal_Index(self, i):
-        self.parameters.at[i, 'ArousalIndex'] += self.beta*(1 - self.parameters.loc[i, 'CompatibilityMeasure'] - self.parameters.loc[i, 'ArousalIndex'])
+            # List of parameters
+            self.parameters_list.append([x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 1., 1.])
+        
+        else:
+            
+            # List of parameters
+            self.parameters_list.append([x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 1., 1.])
     
-    def mu(self, x):
-        for row in self.parameters.index:
-            self.parameters.at[row, 'mu'] = math.exp( - self.r * np.linalg.norm(self.parameters.loc[row, 'Center'] - x ) )
-           
+    def CompatibilityMeasure(self, x, i):
+        
+        # The compatibility measure can be lower than 0 if the input data is not normalized
+        # Compute the norm used to calculate the compatibility measure
+        norm_cm = (np.linalg.norm(x - self.parameters_list[i][0]) / x.shape[0])
+        # Compute the compatibility measure without the correlation
+        CompatibilityMeasure = 1 - norm_cm if norm_cm < 1. else 0.
+        
+        # Update the compatibility measure
+        self.parameters_list[i][4] = CompatibilityMeasure
+        
+        # Update the respective arousal index
+        self.Arousal_Index(i)
+        
+    def Arousal_Index(self, i):
+        
+        # Atualização para todas as regras no DataFrame
+        self.parameters_list[i][3] += self.beta * (1 - self.parameters_list[i][4] - self.parameters_list[i][3])
+    
+    def GaussianMF(self, v1, v2):
+        mf = np.zeros((v1.shape))
+        for j in range(v1.shape[0]):
+            denominator = (2 * self.sigma ** 2)
+            if denominator != 0:
+                mf[j,0] = math.exp( - ( v1[j,0] - v2[j,0] ) ** 2 / denominator )
+            else:
+                mf[j,0] = math.exp( - ( v1[j,0] - v2[j,0] ) ** 2 / 2 )
+        return mf.prod()
+    
+    def Tau(self, x):
+        # Compute tau
+        for row in range(len(self.parameters_list)):
+            tau = self.GaussianMF(x, self.parameters_list[row][0])
+            # Evoid tau with values zero
+            if abs(tau) < (10 ** -100):
+                tau = (10 ** -100)
+            self.parameters_list[row][8] = tau
+            
+    def Lambda(self, x):
+        
+        # Update the values of Tau
+        self.Tau(x)
+        
+        # Compute the sum of tau
+        tau_sum = 0
+        for i in range(len(self.parameters_list)):
+            tau_sum += self.parameters_list[i][8]
+            
+        for row in range(len(self.parameters_list)):
+            self.parameters_list[row][7] = self.parameters_list[row][8] / tau_sum
+            
     def UpdateRule(self, x, y, i):
+        
         # Update the number of observations in the rule
-        self.parameters.loc[i, 'NumObservations'] += 1
+        self.parameters_list[i][6] += 1
         # Update the cluster Center
-        self.parameters.at[i, 'Center'] += (self.alpha*(self.parameters.loc[i, 'CompatibilityMeasure'])**(1 - self.alpha))*(x - self.parameters.loc[i, 'Center'])
-          
+        self.parameters_list[i][0] += (self.alpha*(self.parameters_list[i][4])**(1 - self.alpha))*(x - self.parameters_list[i][0])
         
     def SimilarityIndex(self):
-        for i in range(self.parameters.shape[0] - 1):
-            l = []
-			#if i < len(self.clusters) - 1:
-            for j in range(i + 1, self.parameters.shape[0]):
-                vi, vj = self.parameters.iloc[i,0], self.parameters.iloc[j,0]
+        
+        # List of rows to remove
+        remove = []
+        
+        # Look for indexes to remove
+        for i in range(len(self.parameters_list) - 1):
+            for j in range(i + 1, len(self.parameters_list)):
+                vi, vj = (self.parameters_list[i][0], self.parameters_list[j][0])
                 compat_ij = (1 - ((np.linalg.norm(vi - vj))))
                 if compat_ij >= self.lambda1:
-                    self.parameters.at[self.parameters.index[j], 'Center'] = ( (self.parameters.loc[self.parameters.index[i], 'Center'] + self.parameters.loc[self.parameters.index[j], 'Center']) / 2)
-                    self.parameters.at[self.parameters.index[j], 'P'] = ( (self.parameters.loc[self.parameters.index[i], 'P'] + self.parameters.loc[self.parameters.index[j], 'P']) / 2)
-                    self.parameters.at[self.parameters.index[j], 'Theta'] = np.array((self.parameters.loc[self.parameters.index[i], 'Theta'] + self.parameters.loc[self.parameters.index[j], 'Theta']) / 2)
-                    l.append(int(i))
+                    self.parameters_list[j][0] = ( (self.parameters_list[i][0] + self.parameters_list[j][0]) / 2)
+                    self.parameters_list[j][1] = ( (self.parameters_list[i][1] + self.parameters_list[j][1]) / 2)
+                    self.parameters_list[j][2] = np.array((self.parameters_list[i][2] + self.parameters_list[j][2]) / 2)
+                    remove.append(int(i))
 
-        self.parameters.drop(index=self.parameters.index[l,], inplace=True)
+        # Remove rules
+        if not remove:
+            
+            self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
+    
 
     def RLS(self, x, y, xe):
-        for row in self.parameters.index:
-            self.parameters.at[row, 'P'] -= ((self.parameters.loc[row, 'P'] @ xe @ xe.T @ self.parameters.loc[row, 'P'])/(1 + xe.T @ self.parameters.loc[row, 'P'] @ xe))
-            self.parameters.at[row, 'Theta'] += (self.parameters.loc[row, 'P'] @ xe * (y - xe.T @ self.parameters.loc[row, 'Theta']))
-
+        for row in range(len(self.parameters_list)):
+            self.parameters_list[row][1] -= (( self.parameters_list[row][1] @ xe @ xe.T @ self.parameters_list[row][1])/(1 + xe.T @ self.parameters_list[row][1] @ xe))
+            self.parameters_list[row][2] += (self.parameters_list[row][1] @ xe * (y - xe.T @ self.parameters_list[row][2]))
+            
 
 class exTS(base):
+    
     def __init__(self, omega = 1000, mu = 1/3, epsilon = 0.01, rho = 1/2):
+        
+        # Call __init__ of the base class
+        super().__init__()
         
         if not (isinstance(omega, int) and omega > 0):
             raise ValueError("omega must be a positive integer.")
@@ -2095,14 +2285,6 @@ class exTS(base):
         self.Beta = 0.
         self.Sigma = 0.
         self.z_last = None
-        # Evolution of the model rules
-        self.rules = []
-        # Computing the output in the training phase
-        self.y_pred_training = np.array([])
-        # Computing the residual square in the ttraining phase
-        self.ResidualTrainingPhase = np.array([])
-        # Computing the output in the testing phase
-        self.y_pred_test = np.array([])
     
     def get_params(self, deep=True):
         return {
@@ -2485,7 +2667,11 @@ class exTS(base):
             
     
 class Simpl_eTS(base):
+    
     def __init__(self, omega = 1000, r = 0.1):
+        
+        # Call __init__ of the base class
+        super().__init__()
         
         if not (isinstance(omega, int) and omega > 0):
             raise ValueError("omega must be a positive integer.")
@@ -2855,7 +3041,11 @@ class Simpl_eTS(base):
 
 
 class eTS(base):
+    
     def __init__(self, omega = 1000, r = 0.1):
+        
+        # Call __init__ of the base class
+        super().__init__()
         
         if not (isinstance(omega, int) and omega > 0):
             raise ValueError("omega must be a positive integer.")
