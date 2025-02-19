@@ -13,6 +13,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# Used to plot distributions for eMG
+from scipy.stats import multivariate_normal
+from itertools import combinations
+
 # Importing libraries
 # Binomial cumulative distribution function
 from scipy.stats import binom
@@ -20,6 +24,19 @@ from scipy.stats import binom
 from scipy.stats.distributions import chi2
 
 class base():
+    
+    def __init__(self):
+        
+        # Shared parameters
+        self.parameters_list = []
+        # Evolution of the model rules
+        self.rules = []
+        # Computing the output in the training phase
+        self.y_pred_training = None
+        # Computing the residual square in the ttraining phase
+        self.ResidualTrainingPhase = None
+        # Computing the output in the testing phase
+        self.y_pred_test = None
     
     def n_rules(self):
         return self.rules[-1]
@@ -30,6 +47,10 @@ class base():
 class ePL_KRLS_DISCO(base):
     
     def __init__(self, alpha = 0.001, beta = 0.05, lambda1 = 0.0000001, sigma = 0.5, tau = 0.05, omega = 1, e_utility = 0.05):
+        
+        # Call __init__ of the base class
+        super().__init__()
+
         
         if not (0 <= alpha <= 1):
             raise ValueError("alpha must be a float between 0 and 1.")
@@ -55,21 +76,11 @@ class ePL_KRLS_DISCO(base):
         self.omega = omega
         self.e_utility = e_utility
         
-        # Parameters
-        self.parameters_list = []
         # Parameters used to calculate the utility measure
         self.epsilon = []
         self.eTil = [0.]
         # Monitoring if some rule was excluded
         self.ExcludedRule = 0
-        # Evolution of the model rules
-        self.rules = []
-        # Computing the output in the training phase
-        self.y_pred_training = None
-        # Computing the residual square in the ttraining phase
-        self.ResidualTrainingPhase = None
-        # Computing the output in the testing phase
-        self.y_pred_test = None
     
     def get_params(self, deep=True):
         return {
@@ -138,46 +149,6 @@ class ePL_KRLS_DISCO(base):
         # Adjust layout for better spacing
         plt.tight_layout()
         plt.show()
-    
-    # def plot_gaussians_rules(self, num_points=100):
-    #     # Set plot-wide configurations only once
-    #     plt.rc('font', size=20)
-    #     plt.rc('axes', titlesize=20)
-        
-    #     # Determine the number of rules (rows) and attributes per rule (columns)
-    #     num_rules = len(self.parameters.index)
-    #     num_attributes = self.parameters.loc[self.parameters.index[0], "Center"].shape[0]
-    
-    #     # Create a figure with subplots
-    #     fig, axes = plt.subplots(num_rules, num_attributes, figsize=(num_attributes * 6, num_rules * 4))
-        
-    #     # Ensure axes is always a 2D array for easy indexing
-    #     if num_rules == 1:
-    #         axes = np.expand_dims(axes, axis=0)
-    #     if num_attributes == 1:
-    #         axes = np.expand_dims(axes, axis=1)
-    
-    #     # Iterate through rules and attributes
-    #     for i, rule_idx in enumerate(self.parameters.index):
-    #         for j in range(num_attributes):
-    #             ax = axes[i, j]  # Select the correct subplot
-                
-    #             # Generate x values for smooth curve
-    #             center = self.parameters.loc[rule_idx, "Center"][j]
-    #             x_vals = np.linspace(center - 3 * self.sigma, center + 3 * self.sigma, num_points)
-    #             y_vals = np.exp(-((x_vals - center) ** 2) / (2 * self.sigma ** 2))
-                
-    #             # Plot on the corresponding subplot
-    #             ax.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'μ={center.item():.2f}, σ={self.sigma:.2f}')
-    #             ax.set_title(f'Rule {rule_idx} - Attribute {j}')
-    #             ax.set_xlabel('Values')
-    #             ax.set_ylabel('Membership')
-    #             ax.legend()
-    #             ax.grid(False)
-    
-    #     # Adjust layout for better spacing
-    #     plt.tight_layout()
-    #     plt.show()
     
     def plot_gaussians(self, num_points=100):
         # Set plot-wide configurations only once
@@ -697,6 +668,9 @@ class ePL_plus(base):
     
     def __init__(self, alpha = 0.001, beta = 0.1, lambda1 = 0.35, tau = None, omega = 1000, sigma = 0.25, e_utility = 0.05, pi = 0.5):
         
+        # Call __init__ of the base class
+        super().__init__()
+        
         if not (0 <= alpha <= 1):
             raise ValueError("alpha must be a float between 0 and 1.")
         if not (0 <= beta <= 1):
@@ -724,19 +698,8 @@ class ePL_plus(base):
         self.e_utility = e_utility
         self.pi = pi
         
-        # Model's parameters
-        self.parameters = pd.DataFrame(columns = ['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'tau', 'lambda', 'SumLambda', 'Utility', 'sigma', 'support', 'z', 'diff_z', 'local_scatter'])
-        self.parameters_list = []
         # Monitoring if some rule was excluded
         self.ExcludedRule = 0
-        # Evolution of the model rules
-        self.rules = []
-        # Computing the output in the training phase
-        self.y_pred_training = None
-        # Computing the residual square in the ttraining phase
-        self.ResidualTrainingPhase = None
-        # Computing the output in the testing phase
-        self.y_pred_test = None
     
     def get_params(self, deep=True):
         return {
@@ -759,6 +722,10 @@ class ePL_plus(base):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
     
     def plot_rules(self, num_points=100):
+        
+        # Warning for this function
+        warnings.warn("ePL+ does not compute the standard deviation; it calculates the radius, which is different. As a result, the Gaussians may not be meaningful.", UserWarning)
+        
         # Set plot-wide configurations only once
         plt.rc('font', size=13)
         plt.rc('axes', titlesize=15)
@@ -798,6 +765,10 @@ class ePL_plus(base):
         plt.show()
     
     def plot_gaussians(self, num_points=100):
+        
+        # Warning for this function
+        warnings.warn("ePL+ does not compute the standard deviation; it calculates the radius, which is different. As a result, the Gaussians may not be meaningful.", UserWarning)
+        
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
         plt.rc('axes', titlesize=30)
@@ -812,7 +783,7 @@ class ePL_plus(base):
                 
                 # Create and configure the plot
                 plt.figure(figsize=(19.20, 10.80))
-                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.parameters.loc[i,"sigma"][j].item():.2f})')
+                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.parameters.loc[i,"sigma"][j].item()**(1/2):.2f})')
                 plt.title(f'Rule {i} - Attribute {j}')
                 plt.xlabel('Values')
                 plt.ylabel('Membership')
@@ -1219,6 +1190,9 @@ class eMG(base):
     
     def __init__(self, alpha = 0.01, lambda1 = 0.1, w = 10, sigma = 0.05, omega = 10^2, maximum_rules = 200):
         
+        # Call __init__ of the base class
+        super().__init__()
+        
         if not (0 <= alpha <= 1):
             raise ValueError("alpha must be a float between 0 and 1.")
         if not (0 <= lambda1 <= 1):
@@ -1238,26 +1212,14 @@ class eMG(base):
         self.omega = omega
         self.maximum_rules = maximum_rules
         
-        # Model's parameters
-        self.parameters = pd.DataFrame(columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'LocalOutput'])
+        # # Model's parameters
+        # self.parameters = pd.DataFrame(columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'LocalOutput'])
         # Defining the initial dispersion matrix
         self.Sigma_init = np.array([])
         # Defining the threshold for the compatibility measure
         self.Tp = None
         # Defining the threshold for the arousal index
         self.Ta = 1 - self.lambda1
-        # Monitoring if some rule was excluded
-        self.ExcludedRule = 0
-        # Evolution of the model rules
-        self.rules = []
-        # Computing the output in the training phase
-        self.y_pred_training = np.array([])
-        # Computing the residual square in the ttraining phase
-        self.ResidualTrainingPhase = np.array([])
-        # Computing the output in the testing phase
-        self.y_pred_test = np.array([])
-        # Computing the residual square in the testing phase
-        self.ResidualTestPhase = np.array([])
         
     def get_params(self, deep=True):
         return {
@@ -1275,25 +1237,151 @@ class eMG(base):
     
     def is_numeric_and_finite(self, array):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
+    
+    def plot_rules(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=13)
+        plt.rc('axes', titlesize=15)
+        # plt.figure(figsize=(19.20, 10.80))
+    
+        # Determine the number of rules (rows) and attributes per rule
+        num_rules = len(self.parameters.index)
+        num_attributes = self.parameters.loc[self.parameters.index[0], "Center"].shape[1]
+    
+        # Create a figure with subplots (one per rule)
+        fig, axes = plt.subplots(num_rules, 1, figsize=(8, num_rules * 4), squeeze=False, sharey=True)
+    
+        # Iterate through rules
+        for i, rule_idx in enumerate(self.parameters.index):
+            ax = axes[i, 0]  # Select the subplot for the rule
+            
+            # Iterate through all attributes and plot them in the same subplot
+            for j in range(num_attributes):
+                center = self.parameters.loc[rule_idx, "Center"][0,j]
+                sigma = self.parameters.loc[rule_idx, "Sigma"][j,j]**(1/2)
+                x_vals = np.linspace(center - 3 * sigma, center + 3 * sigma, num_points)
+                y_vals = np.exp(-((x_vals - center) ** 2) / (2 * sigma ** 2))
+                
+                ax.plot(x_vals, y_vals, linewidth=3, label=f'Attr {j}: μ={center:.2f}, σ={sigma:.2f}')
+            
+            # Subplot settings
+            ax.set_title(f'Rule {rule_idx}')
+            ax.legend(loc="lower center", ncol=2)
+            ax.grid(False)
+    
+        # Set a single y-label for the entire figure
+        fig.supylabel("Membership")
+        fig.supxlabel("Values")
+    
+        # Adjust layout for better spacing
+        plt.tight_layout()
+        plt.show()
+    
+    def plot_gaussians(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+        
+        # Iterate through rules and attributes
+        for i in self.parameters.index:
+            for j in range(self.parameters.loc[i,"Center"].shape[1]):
+                
+                # Generate x values for smooth curve
+                x_vals = np.linspace(self.parameters.loc[i,"Center"][0,j] - 3*self.parameters.loc[i, "Sigma"][j,j]**(1/2), self.parameters.loc[i,"Center"][0,j] + 3*self.parameters.loc[i, "Sigma"][j,j]**(1/2), num_points)
+                y_vals = np.exp(-((x_vals - self.parameters.loc[i,"Center"][0,j])**2) / (2 * self.parameters.loc[i, "Sigma"][j,j]))
+                
+                # Create and configure the plot
+                plt.figure(figsize=(19.20, 10.80))
+                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][0,j]:.2f}, σ={self.parameters.loc[i, "Sigma"][j,j]**(1/2):.2f})')
+                plt.title(f'Rule {i} - Attribute {j}')
+                plt.xlabel('Values')
+                plt.ylabel('Membership')
+                plt.legend()
+                plt.grid(False)
+                
+                # Display the plot
+                plt.show()
+            
+    def plot_2d_projections(self, num_points=100):
+                
+        """
+        Plots 2D projections of 4D Gaussian distributions in a grid of subfigures.
+        
+        - The grid has n rows (number of data rows in self.parameters) 
+          and m columns (number of 2D projections from 4D space).
+        - Each subfigure represents a different Gaussian projection.
+        """
+    
+        num_rows = len(self.parameters)  # Number of Gaussian distributions
+        dim_combinations = list(combinations(range(4), 2))  # All 2D projections
+        num_cols = len(dim_combinations)  # Number of projections per row
+    
+        fig, axes = plt.subplots(num_rows, num_cols, figsize=(4 * num_cols, 4 * num_rows))
+    
+        # Ensure axes is always a 2D array for consistent indexing
+        if num_rows == 1:
+            axes = np.expand_dims(axes, axis=0)
+        if num_cols == 1:
+            axes = np.expand_dims(axes, axis=1)
+    
+        for row_idx in range(num_rows):
+            # Convert 'Center' to a 1D array
+            center = np.array(self.parameters.loc[row_idx, "Center"]).flatten()
+            # Convert 'Sigma' (Covariance matrix) to a 2D array
+            covariance_matrix = np.array(self.parameters.loc[row_idx, "Sigma"])
+    
+            for col_idx, dim_pair in enumerate(dim_combinations):
+                ax = axes[row_idx, col_idx]  # Get subplot axis
+                
+                # Extract relevant 2D center and covariance submatrix
+                covariance_2d = covariance_matrix[np.ix_(dim_pair, dim_pair)]
+                center_2d = center[list(dim_pair)]
+    
+                # Create multivariate normal distribution for this 2D projection
+                rv = multivariate_normal(mean=center_2d, cov=covariance_2d)
+    
+                # Define axis limits dynamically based on eigenvalues of covariance
+                eigenvalues, _ = np.linalg.eig(covariance_2d)
+                axis_limit = 3 * np.sqrt(max(eigenvalues))  # 3 standard deviations
+                x = np.linspace(center_2d[0] - axis_limit, center_2d[0] + axis_limit, num_points)
+                y = np.linspace(center_2d[1] - axis_limit, center_2d[1] + axis_limit, num_points)
+                X, Y = np.meshgrid(x, y)
+                pos = np.dstack((X, Y))
+    
+                # Plot the contour for this 2D projection
+                ax.contour(X, Y, rv.pdf(pos), levels=10)
+                ax.set_title(f"Rule {row_idx} - Attributes {dim_pair[0]} x {dim_pair[1]}")
+                ax.set_xlabel(f'Attribute {dim_pair[0]}')
+                ax.set_ylabel(f'Attribute {dim_pair[1]}')
+                ax.set_xlim(center_2d[0] - axis_limit, center_2d[0] + axis_limit)
+                ax.set_ylim(center_2d[1] - axis_limit, center_2d[1] + axis_limit)
+                ax.set_aspect('equal')
+    
+        plt.tight_layout()
+        plt.show()
          
     def fit(self, X, y):
         
+        # Shape of X and y
+        X_shape = X.shape
+        y_shape = y.shape
+        
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y.shape) > 1 and y.shape[1] > 1:
+        if len(y_shape) > 1 and y_shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y.shape) > 1:
+        if len(y_shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X.shape[0] != y.shape[0]:
+        if X_shape[0] != y_shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
@@ -1312,53 +1400,91 @@ class eMG(base):
                 " Check y for non-numeric or infinity values"
             )
             
+        # Preallocate space for the outputs for better performance
+        self.y_pred_training = np.zeros((y_shape))
+        self.ResidualTrainingPhase = np.zeros((y_shape))
+        
+        # Initialize outputs
+        self.y_pred_training[0,] = y[0]
+        self.ResidualTrainingPhase[0,] = 0.
+            
         # Initializing the initial dispersion matrix
         self.Sigma_init = self.sigma * np.eye(X.shape[1])
+        
         # Initializing the threshold for the compatibility measure
         self.Tp = chi2.ppf(1 - self.lambda1, df=X.shape[1])
-        # Initialize the first rule
-        self.Initialize_First_Cluster(X[0,], y[0])
         
-        for k in range(X.shape[0]):
-            
-            xk = np.insert(X[k,], 0, 1, axis=0).reshape(1,X.shape[1]+1)
+        # Initialize the first rule
+        self.NewRule(X[0,].reshape(1,-1), y[0])
+        
+        # Update consequent parameters
+        xk = np.insert(X[0,], 0, 1, axis=0).reshape(1,X.shape[1]+1)
+        self.RLS_NewRule(xk, y[0], 0)
+        
+        for k in range(1,X.shape[0]):
+                        
+            # Prepare inputs
+            xk = np.insert(X[k,], 0, 1, axis=0).reshape(1,-1)
+            x = X[k,].reshape(1,-1)
             
             # Compute the compatibility measure and the arousal index for all rules
-            Output = 0
             sumCompatibility = 0
-            for i in self.parameters.index:
-                self.CompatibilityMeasure(X[k,], i)
-                # Local output
-                self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Theta']
-                Output = Output + self.parameters.at[i, 'LocalOutput'] * self.parameters.loc[i, 'CompatibilityMeasure']
-                sumCompatibility = sumCompatibility + self.parameters.loc[i, 'CompatibilityMeasure']
-            # Global output
-            if sumCompatibility == 0:
-                Output = 0
-            else:
-                Output = Output/sumCompatibility
+            for i in range(len(self.parameters_list)):
                 
-            self.y_pred_training = np.append(self.y_pred_training, Output)
-            # Residual
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
+                # Compute the values of the compatibility measure
+                self.CompatibilityMeasure(X[k,], i)
+                
+                # Total value of the compatibility measure
+                sumCompatibility = sumCompatibility + self.parameters_list[i][2]
+                
+            # Compute the normalized compatibility measure
+            for i in range(len(self.parameters_list)):
+                
+                # Compute the values of the normalized compatibility measure
+                self.parameters_list[i][8] = self.parameters_list[i][2] / sumCompatibility
+                
+            # Output
+            Output = sum(xk @ self.parameters_list[i][6] * self.parameters_list[i][8] for i in range(len(self.parameters_list)))
+                            
+            # Store the results
+            self.y_pred_training[k,] = Output.item()
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase[k,] = residual ** 2
+            
+            # Look for a compatible rule
             Center = -1
             compatibility = -1
-            for i in self.parameters.index:
+            for i in range(len(self.parameters_list)):
                 chistat = self.M_Distance(X[k,].reshape(1, X.shape[1]), i)
-                if self.parameters.loc[i, 'ArousalIndex'] < self.Ta and chistat < self.Tp:
-                    if self.parameters.loc[i, 'CompatibilityMeasure'] > compatibility:
-                        compatibility = self.parameters.loc[i, 'CompatibilityMeasure']
+                if self.parameters_list[i][1] < self.Ta and chistat < self.Tp:
+                    if self.parameters_list[i][2] > compatibility:
+                        compatibility = self.parameters_list[i][2]
                         Center = i
+            
+            # Check if it is necessary to create or update a rule
             if Center == -1:
-                self.Initialize_Cluster(X[k,], y[k])
-                Center = self.parameters.last_valid_index()               
+                # Initialize the new rule
+                self.NewRule(x, y[k])
+                # Update the most compatible center
+                Center = len(self.parameters_list) - 1
+                # Update the RLS for the new rule
+                self.RLS_NewRule(xk, y[k], Center)
             else:
-                self.UpdateRule(X[k,], y[k], Center)
-            for i in self.parameters.index:
-                self.Update_Consequent_Parameters(xk, y[k], i)
-            if self.parameters.shape[0] > 1:
-                self.Merging_Rules(X[k,], Center)
-            self.rules.append(self.parameters.shape[0])
+                self.UpdateRule(x, y[k], Center)
+            
+            # Update the consequent parameters
+            for i in range(len(self.parameters_list)):
+                self.RLS(xk, y[k], i)
+            
+            # Check if it is necessary to remove a rule
+            if len(self.parameters_list) > 1:
+                self.Merging_Rules(x, Center)
+                
+            # Update the number of rules
+            self.rules.append(len(self.parameters_list))
+            
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'NormCompatibilityMeasure'])
     
     def evolve(self, X, y):
         
@@ -1405,44 +1531,68 @@ class eMG(base):
         
         for k in range(X.shape[0]):
             
-            xk = np.insert(X[k,], 0, 1, axis=0).reshape(1,X.shape[1]+1)
+            # Prepare inputs
+            xk = np.insert(X[k,], 0, 1, axis=0).reshape(1,-1)
+            x = X[k,].reshape(1,-1)
             
             # Compute the compatibility measure and the arousal index for all rules
-            Output = 0
             sumCompatibility = 0
-            for i in self.parameters.index:
-                self.CompatibilityMeasure(X[k,], i)
-                # Local output
-                self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Theta']
-                Output = Output + self.parameters.at[i, 'LocalOutput'] * self.parameters.loc[i, 'CompatibilityMeasure']
-                sumCompatibility = sumCompatibility + self.parameters.loc[i, 'CompatibilityMeasure']
-            # Global output
-            if sumCompatibility == 0:
-                Output = 0
-            else:
-                Output = Output/sumCompatibility
+            for i in range(len(self.parameters_list)):
                 
+                # Compute the values of the compatibility measure
+                self.CompatibilityMeasure(X[k,], i)
+                
+                # Total value of the compatibility measure
+                sumCompatibility = sumCompatibility + self.parameters_list[i][2]
+                
+            # Compute the normalized compatibility measure
+            for i in range(len(self.parameters_list)):
+                
+                # Compute the values of the normalized compatibility measure
+                self.parameters_list[i][8] = self.parameters_list[i][2] / sumCompatibility
+                
+            # Output
+            Output = sum(xk @ self.parameters_list[i][6] * self.parameters_list[i][8] for i in range(len(self.parameters_list)))
+            
+            # Store the results
             self.y_pred_training = np.append(self.y_pred_training, Output)
-            # Residual
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,residual**2)
+            
+            # Look for a compatible rule
             Center = -1
             compatibility = -1
-            for i in self.parameters.index:
+            for i in range(len(self.parameters_list)):
                 chistat = self.M_Distance(X[k,].reshape(1, X.shape[1]), i)
-                if self.parameters.loc[i, 'ArousalIndex'] < self.Ta and chistat < self.Tp:
-                    if self.parameters.loc[i, 'CompatibilityMeasure'] > compatibility:
-                        compatibility = self.parameters.loc[i, 'CompatibilityMeasure']
+                if self.parameters_list[i][1] < self.Ta and chistat < self.Tp:
+                    if self.parameters_list[i][2] > compatibility:
+                        compatibility = self.parameters_list[i][2]
                         Center = i
+            
+            # Check if it is necessary to create or update a rule
             if Center == -1:
-                self.Initialize_Cluster(X[k,], y[k])
-                Center = self.parameters.last_valid_index()               
+                # Initialize the new rule
+                self.NewRule(x, y[k])
+                # Update the most compatible center
+                Center = len(self.parameters_list) - 1
+                # Update the RLS for the new rule
+                self.RLS_NewRule(xk, y[k], Center)              
             else:
-                self.UpdateRule(X[k,], y[k], Center)
-            for i in self.parameters.index:
-                self.Update_Consequent_Parameters(xk, y[k], i)
-            if self.parameters.shape[0] > 1:
-                self.Merging_Rules(X[k,], Center)
-            self.rules.append(self.parameters.shape[0])
+                self.UpdateRule(x, y[k], Center)
+            
+            # Update the consequent parameters
+            for i in range(len(self.parameters_list)):
+                self.RLS(xk, y[k], i)
+            
+            # Check if it is necessary to remove a rule
+            if len(self.parameters_list) > 1:
+                self.Merging_Rules(x, Center)
+                
+            # Update the number of rules
+            self.rules.append(len(self.parameters_list))
+            
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'NormCompatibilityMeasure'])
             
     def predict(self, X):
         
@@ -1456,30 +1606,40 @@ class eMG(base):
                 "X contains incompatible values."
                 " Check X for non-numeric or infinity values"
             )
-            
+        
+        # Reshape X
         X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[1])
+        
+        # Preallocate space for the outputs for better performance
+        self.y_pred_test = np.zeros((X.shape[0]))
         
         for k in range(X.shape[0]):
             
             xk = np.insert(X[k,], 0, 1, axis=0).reshape(1,X.shape[1]+1)
             
             # Compute the compatibility measure and the arousal index for all rules
-            Output = 0
             sumCompatibility = 0
-            for i in self.parameters.index:
-                self.CompatibilityMeasure(X[k,], i)
-                # Local output
-                self.parameters.at[i, 'LocalOutput'] = xk @ self.parameters.loc[i, 'Theta']
-                Output = Output + self.parameters.at[i, 'LocalOutput'] * self.parameters.loc[i, 'CompatibilityMeasure']
-                sumCompatibility = sumCompatibility + self.parameters.loc[i, 'CompatibilityMeasure']
-            # Global output
-            if sumCompatibility == 0:
-                Output = 0
-            else:
-                Output = Output/sumCompatibility
+            for i in range(len(self.parameters_list)):
                 
-            self.y_pred_test = np.append(self.y_pred_test, Output)
-        return self.y_pred_test[-X.shape[0]:]
+                # Compute the values of the compatibility measure
+                self.CompatibilityMeasure(X[k,], i)
+                
+                # Total value of the compatibility measure
+                sumCompatibility = sumCompatibility + self.parameters_list[i][2]
+                
+            # Compute the normalized compatibility measure
+            for i in range(len(self.parameters_list)):
+                
+                # Compute the values of the normalized compatibility measure
+                self.parameters_list[i][8] = self.parameters_list[i][2] / sumCompatibility
+                
+            # Output
+            Output = sum(xk @ self.parameters_list[i][6] * self.parameters_list[i][8] for i in range(len(self.parameters_list)))
+                
+            # Store the results
+            self.y_pred_test[k,] = Output.item()
+            
+        return self.y_pred_test
     
     def validate_vector(self, u, dtype=None):
         # XXX Is order='c' really necessary?
@@ -1543,73 +1703,74 @@ class eMG(base):
         delta = u - v
         m = np.dot(np.dot(delta, VI), delta)
         return m
+    
+    def NewRule(self, x, y, isFirst = False):
         
-    def Initialize_First_Cluster(self, x, y):
-        x = x.reshape(1, x.shape[0])
         Q = self.omega * np.eye(x.shape[1] + 1)
         Theta = np.insert(np.zeros((x.shape[1],1)), 0, y, axis=0)
-        self.parameters = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Theta, Q, 0.]], columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'LocalOutput'])
-    
-    def Initialize_Cluster(self, x, y):
-        x = x.reshape(1, x.shape[0])
-        Q = self.omega * np.eye(x.shape[1] + 1)
-        Theta = np.insert(np.zeros((x.shape[1],1)), 0, y, axis=0)
-        NewRow = pd.DataFrame([[x, 0., 1., 1., self.Sigma_init, np.array([]), Theta, Q, 0.]], columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'LocalOutput'])
-        self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
-    
+        # List of parameters
+        self.parameters_list.append([x, 0., 1., 1., self.Sigma_init, np.array([]), Theta, Q, 0.])
+        
     def M_Distance(self, x, i):
-        dist = self.mahalanobis(x, self.parameters.loc[i, 'Center'], np.linalg.inv(self.parameters.loc[i, 'Sigma']))
+        dist = self.mahalanobis(x, self.parameters_list[i][0], np.linalg.inv(self.parameters_list[i][4]))
         return dist
        
     def CompatibilityMeasure(self, x, i):
         x = x.reshape(1, x.shape[0])
         dist = self.M_Distance(x, i)
         compat = math.exp(-0.5 * dist)
-        self.parameters.at[i, 'CompatibilityMeasure'] = compat
+        if abs(compat) < (10 ** -100):
+            compat = (10 ** -100)
+        self.parameters_list[i][2] = compat
         return compat
             
     def Arousal_Index(self, x, i):
         x = x.reshape(1, x.shape[0])
         chistat = self.M_Distance(x, i)
-        self.parameters.at[i, 'o'] = np.append(self.parameters.loc[i, 'o'], 1) if chistat < self.Tp else np.append(self.parameters.loc[i, 'o'], 0)
-        arousal = binom.cdf(sum(self.parameters.loc[i,'o'][-self.w:]), self.w, self.lambda1) if self.parameters.loc[i,'NumObservations'] > self.w else 0.
-        self.parameters.at[i, 'ArousalIndex'] = arousal
+        self.parameters_list[i][5] = np.append(self.parameters_list[i][5], 1) if chistat < self.Tp else np.append(self.parameters_list[i][5], 0)
+        arousal = binom.cdf(sum(self.parameters_list[i][5][-self.w:]), self.w, self.lambda1) if self.parameters_list[i][3] > self.w else 0.
+        self.parameters_list[i][1] = arousal
         return arousal
     
-    def UpdateRule(self, x, y, MaxCompatibility):
+    def UpdateRule(self, x, y, i):
         # Update the number of observations in the rule
-        self.parameters.loc[MaxCompatibility, 'NumObservations'] = self.parameters.loc[MaxCompatibility, 'NumObservations'] + 1
-        # Store the old cluster Center
-        # OldCenter = self.parameters.loc[MaxCompatibility, 'Center']
-        G = (self.alpha * (self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'])**(1 - self.parameters.loc[MaxCompatibility, 'ArousalIndex']))
+        self.parameters_list[i][3] += 1
+        # Compute G
+        G = (self.alpha * (self.parameters_list[i][2])**(1 - self.parameters_list[i][1]))
         # Update the cluster Center
-        self.parameters.at[MaxCompatibility, 'Center'] = self.parameters.loc[MaxCompatibility, 'Center'] + G * (x - self.parameters.loc[MaxCompatibility, 'Center'])
+        self.parameters_list[i][0] += G * (x - self.parameters_list[i][0])
         # Updating the dispersion matrix
-        self.parameters.at[MaxCompatibility, 'Sigma'] = (1 - G) * (self.parameters.loc[MaxCompatibility, 'Sigma'] - G * (x - self.parameters.loc[MaxCompatibility, 'Center']) @ (x - self.parameters.loc[MaxCompatibility, 'Center']).T)
+        self.parameters_list[i][4] = (1 - G) * (self.parameters_list[i][4] - G * (x - self.parameters_list[i][0]).T @ (x - self.parameters_list[i][0]))
         
     def Membership_Function(self, x, i):
-        dist = self.mahalanobis(x, self.parameters.loc[i, 'Center'], np.linalg.inv(self.parameters.loc[i, 'Sigma']))
+        dist = self.mahalanobis(x, self.parameters_list[i][0], np.linalg.inv(self.parameters_list[i][4]))
         return math.sqrt(dist)
-        
-    def Update_Consequent_Parameters(self, xk, y, i):
-        self.parameters.at[i, 'Q'] = self.parameters.loc[i, 'Q'] - ((self.parameters.loc[i, 'CompatibilityMeasure'] * self.parameters.loc[i, 'Q'] @ xk.T @ xk @ self.parameters.loc[i, 'Q']) / (1 + self.parameters.loc[i, 'CompatibilityMeasure'] * xk @ self.parameters.loc[i, 'Q'] @ xk.T))
-        self.parameters.at[i, 'Theta'] = self.parameters.loc[i, 'Theta'] + self.parameters.loc[i, 'Q'] @ xk.T * self.parameters.loc[i, 'CompatibilityMeasure'] * (y - xk @ self.parameters.loc[i, 'Theta'])
-                        
-    def Merging_Rules(self, x, MaxCompatibility):
-        for i in self.parameters.index:
-            if MaxCompatibility != i:
-                dist1 = self.M_Distance(self.parameters.loc[MaxCompatibility, 'Center'], i)
-                dist2 = self.M_Distance(self.parameters.loc[i, 'Center'], MaxCompatibility)
+                
+    def Merging_Rules(self, x, MaxCompatibilityIdx):
+        for i in range(len(self.parameters_list)):
+            if MaxCompatibilityIdx != i:
+                dist1 = self.M_Distance(self.parameters_list[MaxCompatibilityIdx][0], i)
+                dist2 = self.M_Distance(self.parameters_list[i][0], MaxCompatibilityIdx)
                 if dist1 < self.Tp or dist2 < self.Tp:
-                    self.parameters.at[MaxCompatibility, 'Center'] = np.mean(np.array([self.parameters.loc[i, 'Center'], self.parameters.loc[MaxCompatibility, 'Center']]), axis=0)
-                    self.parameters.at[MaxCompatibility, 'Sigma'] = [self.Sigma_init]
-                    self.parameters.at[MaxCompatibility, 'Q'] = self.omega * np.eye(x.shape[0] + 1)
-                    self.parameters.at[MaxCompatibility, 'Theta'] = (self.parameters.loc[MaxCompatibility, 'Theta'] * self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'Theta'] * self.parameters.loc[i, 'CompatibilityMeasure']) / (self.parameters.loc[MaxCompatibility, 'CompatibilityMeasure'] + self.parameters.loc[i, 'CompatibilityMeasure'])
-                    self.parameters = self.parameters.drop(i)
-                    # Stop creating new rules when the model exclude the first rule
-                    self.ExcludedRule = 1
+                    self.parameters_list[MaxCompatibilityIdx][0] = np.mean(np.array([self.parameters_list[i][0], self.parameters_list[MaxCompatibilityIdx][0]]), axis=0)
+                    self.parameters_list[MaxCompatibilityIdx][4] = self.Sigma_init
+                    self.parameters_list[MaxCompatibilityIdx][7] = self.omega * np.eye(x.shape[1] + 1)
+                    self.parameters_list[MaxCompatibilityIdx][6] = (self.parameters_list[MaxCompatibilityIdx][6] * self.parameters_list[MaxCompatibilityIdx][2] + self.parameters_list[i][6] * self.parameters_list[i][2]) / (self.parameters_list[MaxCompatibilityIdx][2] + self.parameters_list[i][2])
+                    self.parameters_list.pop(i)
+                    
+                    # Stop the loop
+                    break
+    
+                    # # Stop creating new rules when the model exclude the first rule
+                    # self.ExcludedRule = 1
 
-
+    def RLS(self, xk, y, i):
+        self.parameters_list[i][7] -= ((self.parameters_list[i][2] * self.parameters_list[i][7] @ xk.T @ xk @ self.parameters_list[i][7]) / (1 + self.parameters_list[i][2] * xk @ self.parameters_list[i][7] @ xk.T))
+        self.parameters_list[i][6] += self.parameters_list[i][7] @ xk.T * self.parameters_list[i][2] * (y - xk @ self.parameters_list[i][6])
+    
+    def RLS_NewRule(self, xk, y, i):
+        self.parameters_list[i][7] -= ((self.parameters_list[i][2] * self.parameters_list[i][7] @ xk.T @ xk @ self.parameters_list[i][7]) / (1 + self.parameters_list[i][2] * xk @ self.parameters_list[i][7] @ xk.T))
+        self.parameters_list[i][6] += self.parameters_list[i][7] @ xk.T * self.parameters_list[i][2]
 
 class ePL(base):
     def __init__(self, alpha = 0.001, beta = 0.1, lambda1 = 0.35, tau = None, s = 1000, r = 0.25):
@@ -1636,18 +1797,6 @@ class ePL(base):
         self.r = r
         
         self.parameters = pd.DataFrame(columns = ['Center', 'P', 'Theta', 'ArousalIndex', 'CompatibilityMeasure', 'TimeCreation', 'NumObservations', 'mu'])
-        # Monitoring if some rule was excluded
-        self.ExcludedRule = 0
-        # Evolution of the model rules
-        self.rules = []
-        # Computing the output in the training phase
-        self.y_pred_training = np.array([])
-        # Computing the residual square in the ttraining phase
-        self.ResidualTrainingPhase = np.array([])
-        # Computing the output in the testing phase
-        self.y_pred_test = np.array([])
-        # Computing the residual square in the testing phase
-        self.ResidualTestPhase = np.array([])
     
     def get_params(self, deep=True):
         return {
