@@ -3,7 +3,8 @@
 """
 Created on Wed Jan 29 10:20:31 2025
 
-@author: epge903150
+@author: Kaike Sa Teles Rocha Alves
+@email: kaikerochaalves@outlook.com
 """
 
 # Importing libraries
@@ -174,7 +175,24 @@ class ePL_KRLS_DISCO(base):
                 
                 # Display the plot
                 plt.show()
-         
+                
+    def plot_rules_evolution(self):
+        
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+                
+        # Create and configure the plot
+        plt.figure(figsize=(19.20, 10.80))
+        plt.plot(self.rules, color='blue', linewidth=3)
+        plt.title('Evolution of the Rules for Training Phase')
+        plt.xlabel('Samples')
+        plt.ylabel('Number of Rules')
+        plt.grid(False)
+        
+        # Display the plot
+        plt.show()
+ 
     def fit(self, X, y):
         
         # Shape of X and y
@@ -265,11 +283,7 @@ class ePL_KRLS_DISCO(base):
             
             # Update lambda values
             self.Lambda(x)
-            
-            # Check wheather it is necessary to remove a rule
-            if len(self.parameters_list) > 1:
-                self.UtilityMeasure(X[k,], k+1)
-                
+                            
             # Update the number of rules at the current iteration
             self.rules.append(len(self.parameters_list))
             
@@ -281,6 +295,10 @@ class ePL_KRLS_DISCO(base):
             residual = abs(Output - y[k])
             self.ResidualTrainingPhase[k,] = residual ** 2
             
+            # Check wheather it is necessary to remove a rule
+            if len(self.parameters_list) > 1:
+                self.UtilityMeasure(X[k,], k+1)
+                
             # Update epsilon and e_til
             quociente = math.exp(-0.8 * self.eTil[-1] - residual)
             if quociente == 0:
@@ -384,10 +402,6 @@ class ePL_KRLS_DISCO(base):
             
             # Update lambda values
             self.Lambda(x)
-            
-            # Check wheather it is necessary to remove a rule
-            if len(self.parameters_list) > 1:
-                self.UtilityMeasure(X[k,], k+1)
                 
             # Update the number of rules at the current iteration
             self.rules.append(len(self.parameters_list))
@@ -401,6 +415,10 @@ class ePL_KRLS_DISCO(base):
             residual = abs(Output - y[k])
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, residual**2)
             
+            # Check wheather it is necessary to remove a rule
+            if len(self.parameters_list) > 1:
+                self.UtilityMeasure(X[k,], k+1)
+                
             # Update epsilon and e_til
             quociente = math.exp(-0.8 * self.eTil[-1] - residual)
             if quociente == 0:
@@ -594,12 +612,15 @@ class ePL_KRLS_DISCO(base):
                 remove.append(i)
                     
         # Remove old rules
-        if not remove:
+        if remove:
             
-            self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
-    
-            # Inform that a rules was excluded and create no more rules
-            self.ExcludedRule = 1
+            if len(remove) < len(self.parameters_list):
+                
+                # Update the parameters_list with the valid rules
+                self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
+        
+                # Inform that a rules was excluded and create no more rules
+                self.ExcludedRule = 1
             
             
     def KRLS(self, x, y, i):
@@ -803,6 +824,23 @@ class ePL_plus(base):
                 
                 # Display the plot
                 plt.show()
+                
+    def plot_rules_evolution(self):
+        
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+                
+        # Create and configure the plot
+        plt.figure(figsize=(19.20, 10.80))
+        plt.plot(self.rules, color='blue', linewidth=3)
+        plt.title('Evolution of the Rules for Training Phase')
+        plt.xlabel('Samples')
+        plt.ylabel('Number of Rules')
+        plt.grid(False)
+        
+        # Display the plot
+        plt.show()
          
     def fit(self, X, y):
         
@@ -1160,7 +1198,7 @@ class ePL_plus(base):
                 remove.append(i)
                     
         # Remove old rules
-        if not remove:
+        if remove:
             
             self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
 
@@ -1184,12 +1222,9 @@ class ePL_plus(base):
                     remove.append(int(i))
 
         # Remove rules
-        if not remove:
+        if remove:
             
             self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
-    
-            # Inform that a rules was excluded
-            self.ExcludedRule = 1
 
     def RLS(self, x, y, xe):
         for row in range(len(self.parameters_list)):
@@ -1380,6 +1415,23 @@ class eMG(base):
                 ax.set_aspect('equal')
     
         plt.tight_layout()
+        plt.show()
+        
+    def plot_rules_evolution(self):
+        
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+                
+        # Create and configure the plot
+        plt.figure(figsize=(19.20, 10.80))
+        plt.plot(self.rules, color='blue', linewidth=3)
+        plt.title('Evolution of the Rules for Training Phase')
+        plt.xlabel('Samples')
+        plt.ylabel('Number of Rules')
+        plt.grid(False)
+        
+        # Display the plot
         plt.show()
          
     def fit(self, X, y):
@@ -1913,7 +1965,24 @@ class ePL(base):
                 
                 # Display the plot
                 plt.show()
-         
+    
+    def plot_rules_evolution(self):
+        
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+                
+        # Create and configure the plot
+        plt.figure(figsize=(19.20, 10.80))
+        plt.plot(self.rules, color='blue', linewidth=3)
+        plt.title('Evolution of the Rules for Training Phase')
+        plt.xlabel('Samples')
+        plt.ylabel('Number of Rules')
+        plt.grid(False)
+        
+        # Display the plot
+        plt.show()
+        
     def fit(self, X, y):
         
         # Shape of X and y
@@ -2243,7 +2312,7 @@ class ePL(base):
                     remove.append(int(i))
 
         # Remove rules
-        if not remove:
+        if remove:
             
             self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
     
@@ -2301,25 +2370,120 @@ class exTS(base):
     
     def is_numeric_and_finite(self, array):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
+    
+    def show_rules(self):
+        rules = []
+        for i in self.parameters.index:
+            rule = f"Rule {i}"
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                rule = f'{rule} - {self.parameters.loc[i,"Center"][j].item():.2f} ({self.parameters.loc[i,"sigma"][j].item():.2f})'
+            print(rule)
+            rules.append(rule)
+        
+        return rules
+    
+    def plot_rules(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=13)
+        plt.rc('axes', titlesize=15)
+        # plt.figure(figsize=(19.20, 10.80))
+    
+        # Determine the number of rules (rows) and attributes per rule
+        num_rules = len(self.parameters.index)
+        num_attributes = self.parameters.loc[self.parameters.index[0], "Center"].shape[0]
+    
+        # Create a figure with subplots (one per rule)
+        fig, axes = plt.subplots(num_rules, 1, figsize=(8, num_rules * 4), squeeze=False, sharey=True)
+    
+        # Iterate through rules
+        for i, rule_idx in enumerate(self.parameters.index):
+            ax = axes[i, 0]  # Select the subplot for the rule
+            
+            # Iterate through all attributes and plot them in the same subplot
+            for j in range(num_attributes):
+                center = self.parameters.loc[rule_idx, "Center"][j]
+                x_vals = np.linspace(center - 3 * self.parameters.loc[i,"sigma"][j].item(), center + 3 * self.parameters.loc[i,"sigma"][j].item(), num_points)
+                y_vals = np.exp(-((x_vals - center) ** 2) / (2 * self.parameters.loc[i,"sigma"][j].item() ** 2))
+                
+                ax.plot(x_vals, y_vals, linewidth=3, label=f'Attr {j}: μ={center.item():.2f}, σ={self.parameters.loc[i,"sigma"][j].item():.2f}')
+            
+            # Subplot settings
+            ax.set_title(f'Rule {rule_idx}')
+            ax.legend(loc="lower center", ncol=2)
+            ax.grid(False)
+    
+        # Set a single y-label for the entire figure
+        fig.supylabel("Membership")
+        fig.supxlabel("Values")
+    
+        # Adjust layout for better spacing
+        plt.tight_layout()
+        plt.show()
+    
+    def plot_gaussians(self, num_points=100):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+        
+        # Iterate through rules and attributes
+        for i in self.parameters.index:
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                
+                # Generate x values for smooth curve
+                x_vals = np.linspace(self.parameters.loc[i,"Center"][j] - 3*self.parameters.loc[i,"sigma"][j].item(), self.parameters.loc[i,"Center"][j] + 3*self.parameters.loc[i,"sigma"][j].item(), num_points)
+                y_vals = np.exp(-((x_vals - self.parameters.loc[i,"Center"][j])**2) / (2 * self.parameters.loc[i,"sigma"][j].item()**2))
+                
+                # Create and configure the plot
+                plt.figure(figsize=(19.20, 10.80))
+                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.parameters.loc[i,"sigma"][j].item():.2f})')
+                plt.title(f'Rule {i} - Attribute {j}')
+                plt.xlabel('Values')
+                plt.ylabel('Membership')
+                plt.legend()
+                plt.grid(False)
+                
+                # Display the plot
+                plt.show()
+            
+    def plot_rules_evolution(self):
+        
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+                
+        # Create and configure the plot
+        plt.figure(figsize=(19.20, 10.80))
+        plt.plot(self.rules, color='blue', linewidth=3)
+        plt.title('Evolution of the Rules for Training Phase')
+        plt.xlabel('Samples')
+        plt.ylabel('Number of Rules')
+        plt.grid(False)
+        
+        # Display the plot
+        plt.show()
          
     def fit(self, X, y):
         
+        # Shape of X and y
+        X_shape = X.shape
+        y_shape = y.shape
+        
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y.shape) > 1 and y.shape[1] > 1:
+        if len(y_shape) > 1 and y_shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y.shape) > 1:
+        if len(y_shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X.shape[0] != y.shape[0]:
+        if X_shape[0] != y_shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
@@ -2345,72 +2509,105 @@ class exTS(base):
         # Compute z
         z = np.concatenate((x.T, y[0].reshape(-1,1)), axis=1).T
         
+        # Preallocate space for the outputs for better performance
+        self.y_pred_training = np.zeros((y_shape))
+        self.ResidualTrainingPhase = np.zeros((y_shape))
+        
+        # Initialize outputs
+        self.y_pred_training[0,] = y[0]
+        self.ResidualTrainingPhase[0,] = 0.
+        
         # Initialize the first rule
-        self.Initialize_First_Cluster(x, y[0], z)
-        # Update lambda of the first rule
-        self.Update_Lambda(x)
+        self.NewRule(x, y[0], z, True)
+        
+        # Compute the normalized firing level
+        self.Lambda(x)
+        
         # Update the consequent parameters of the fist rule
-        self.RLS(x, y[0], xe)
+        self.RLS(xe, y[0])
         
         for k in range(1, X.shape[0]):
+                        
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
+            
             # Store the previously z
             z_prev = z
+            
             # Compute the new z
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
+            
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
             
             # Compute the potential for all rules
             for i in self.parameters.index:
-                self.Update_Rule_Potential(z, i, k+1)
+                self.UpdateRulePotential(z, i, k+1)
                 
             # Compute the data potential
-            self.Update_Data_Potential(z_prev, z, i, k+1)
-            Greater_Zero = ((self.DataPotential.item() - self.parameters['Potential']) > 0).all()
-            Lower_Zero = ((self.DataPotential - self.parameters['Potential']) < 0).all()
-            # Verifying the needing to creating a new rule
-            if Greater_Zero == True or Lower_Zero == True:
-                self.Compute_mu(x)
-                mu_onethird = self.parameters['mu'].apply(lambda x: np.all(np.array(x) > self.mu)).any()
-                for row in self.parameters.index:
-                    if (self.parameters.loc[row, 'mu'] > self.mu).all():
-                        mu_onethird = 1
-                if mu_onethird == 1:                            
+            self.UpdateDataPotential(z_prev, z, k+1)
+            
+            # Update mu values
+            self.ComputeMu(x)
+            # Look for the highest and lowest potential
+            highest_diff, lowest_diff = (-np.inf, np.inf)
+            for row in range(len(self.parameters_list)):
+                diff = self.DataPotential.item() - self.parameters_list[row][4]
+                if diff > highest_diff:
+                    highest_diff = diff
+                if diff < lowest_diff:
+                    lowest_diff = diff
+                    
+            # Verify the necessity to creating a new rule
+            if ((highest_diff > 0) and (lowest_diff > 0)) or ((highest_diff < 0) and (lowest_diff < 0)):
+                
+                # mu_onethird = self.parameters['mu'].apply(lambda x: np.all(np.array(x) > self.mu)).any()
+                mu_onethird = False
+                for row in range(len(self.parameters_list)):
+                    if (self.parameters_list[row][7] > self.mu).all():
+                        mu_onethird = True
+                if mu_onethird:                            
                     # Update an existing rule
                     self.UpdateRule(x, z)
                 else:
                     # Create a new rule
-                    self.Initialize_Cluster(x, z, k+1, i)
+                    self.NewRule(x, z, k+1)
                     
             # Remove unecessary rules
-            if self.parameters.shape[0] > 1:
-                self.Remove_Rule(k+1)
-                
+            if len(self.parameters_list) > 1:
+                self.RemoveRule(k+1)
+            
+            # Update Lambda
+            self.Lambda(x)
+            
             # Update consequent parameters
-            self.RLS(x, y[k], xe)
+            self.RLS(xe, y[k])
             
             # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
+            self.rules.append(len(self.parameters_list))
             
             # Compute and store the output
             Output = sum(
-                self.parameters.loc[row, 'Lambda'] * xe.T @ self.parameters.loc[row, 'Theta']
-                for row in self.parameters.index
+                self.parameters_list[row][9] * xe.T @ self.parameters_list[row][3]
+                for row in range(len(self.parameters_list))
             )
-            # Store the output in the array
-            self.y_pred_training = np.append(self.y_pred_training, Output)
-            # Compute the square residual of the current iteration
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
-        
+            
+            # Store the results
+            self.y_pred_training[k,] = Output.item()
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase[k,] = residual ** 2
+            
         # Save the last z
         self.z_last = z
+        
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center_Z', 'Center', 'P', 'Theta', 'Potential', 'TimeCreation', 'NumObservations', 'mu', 'Tau', 'Lambda', 'r', 'sigma', 'Increment_Center'])
+
     
     def evolve(self, X, y):
         
         # Be sure that X is with a correct shape
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center_X'].shape[0])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
@@ -2454,52 +2651,69 @@ class exTS(base):
         z = self.z_last
         
         for k in range(1, X.shape[0]):
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
+            
             # Store the previously z
             z_prev = z
+            
             # Compute the new z
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
+            
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
-            # Compute the potential for all rules
             
-            for i in self.parameters.index:
-                self.Update_Rule_Potential(z, i, k+1)
+            # Compute the potential for all rules
+            for i in range(len(self.parameters_list)):
+                self.UpdateRulePotential(z, i, k+1)
                 
             # Compute the data potential
-            self.Update_Data_Potential(z_prev, z, i, k+1)
-            Greater_Zero = ((self.DataPotential.item() - self.parameters['Potential']) > 0).all()
-            Lower_Zero = ((self.DataPotential - self.parameters['Potential']) < 0).all()
+            self.UpdateDataPotential(z_prev, z, k+1)
             
-            # Verifying the needing to creating a new rule
-            if Greater_Zero == True or Lower_Zero == True:
-                self.Compute_mu(x)
-                mu_onethird = 0
-                for row in self.parameters.index:
-                    if (self.parameters.loc[row, 'mu'] > self.mu).all():
-                        mu_onethird = 1
-                if mu_onethird == 1:                            
+            # Update mu values
+            self.ComputeMu(x)
+            # Look for the highest and lowest potential
+            highest_diff, lowest_diff = (-np.inf, np.inf)
+            for row in range(len(self.parameters_list)):
+                diff = self.DataPotential.item() - self.parameters_list[row][4]
+                if diff > highest_diff:
+                    highest_diff = diff
+                if diff < lowest_diff:
+                    lowest_diff = diff
+                    
+            # Verify the necessity to creating a new rule
+            if ((highest_diff > 0) and (lowest_diff > 0)) or ((highest_diff < 0) and (lowest_diff < 0)):
+                
+                # mu_onethird = self.parameters['mu'].apply(lambda x: np.all(np.array(x) > self.mu)).any()
+                mu_onethird = False
+                for row in range(len(self.parameters_list)):
+                    if (self.parameters_list[row][7] > self.mu).all():
+                        mu_onethird = True
+                if mu_onethird:                            
                     # Update an existing rule
                     self.UpdateRule(x, z)
                 else:
                     # Create a new rule
-                    self.Initialize_Cluster(x, z, k+1, i)
+                    self.NewRule(x, z, k+1)
                     
             # Remove unecessary rules
-            if self.parameters.shape[0] > 1:
-                self.Remove_Rule(k+1)
+            if len(self.parameters_list) > 1:
+                self.RemoveRule(k+1)
+                
+            # Update Lambda
+            self.Lambda(x)
                 
             # Update consequent parameters
-            self.RLS(x, y[k], xe)
+            self.RLS(xe, y[k])
             
             # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
+            self.rules.append(len(self.parameters_list))
             
             # Compute and store the output
             Output = sum(
-                self.parameters.loc[row, 'Lambda'] * xe.T @ self.parameters.loc[row, 'Theta']
-                for row in self.parameters.index
+                self.parameters_list[row][9] * xe.T @ self.parameters_list[row][3]
+                for row in range(len(self.parameters_list))
             )
             
             # Store the output in the array
@@ -2507,8 +2721,12 @@ class exTS(base):
             # Compute the square residual of the current iteration
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
         
+        # Save the last z
         self.z_last = z
-            
+        
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center_Z', 'Center', 'P', 'Theta', 'Potential', 'TimeCreation', 'NumObservations', 'mu', 'Tau', 'Lambda', 'r', 'sigma', 'Increment_Center'])
+
     def predict(self, X):
         
         # Correct format X to 2d
@@ -2521,149 +2739,158 @@ class exTS(base):
                 "X contains incompatible values."
                 " Check X for non-numeric or infinity values"
             )
-            
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center_X'].shape[0])
+        
+        # Reshape X
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
+        
+        # Preallocate space for the outputs for better performance
+        self.y_pred_test = np.zeros((X.shape[0]))
         
         for k in range(X.shape[0]):
             
+            # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
+            
+            # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
             
             # Update lambda of all rules
-            self.Update_Lambda(x)
-            
-            # Verify if lambda is nan
-            if np.isnan(self.parameters['Lambda']).any():
-                self.parameters['Lambda'] = 1 / self.parameters.shape[0]
-                    
+            self.Lambda(x)
+                                
             # Compute and store the output
             Output = sum(
-                self.parameters.loc[row, 'Lambda'] * xe.T @ self.parameters.loc[row, 'Theta']
-                for row in self.parameters.index
+                self.parameters_list[row][9] * xe.T @ self.parameters_list[row][3]
+                for row in range(len(self.parameters_list))
             )
             
-            # Store the output in the array
-            self.y_pred_test = np.append(self.y_pred_test, Output)
+            # Store the results
+            self.y_pred_test[k,] = Output.item()
             
-        return self.y_pred_test[-X.shape[0]:]
+        return self.y_pred_test
         
-    def Initialize_First_Cluster(self, x, y, z):
-        self.parameters = pd.DataFrame([{
-            'Center_Z': z,
-            'Center_X': x,
-            'C': self.omega * np.eye(x.shape[0] + 1),
-            'Theta': np.zeros((x.shape[0] + 1, 1)),
-            'Potential': self.InitialPotential,
-            'TimeCreation': 1.,
-            'NumPoints': 1.,
-            'mu': np.zeros([x.shape[0], 1]),
-            'Tau': 1.,
-            'r': np.ones([x.shape[0], 1]),
-            'sigma': np.ones([x.shape[0], 1]),
-            'increment_Center_x': np.zeros([x.shape[0], 1])
-        }])
+    def NewRule(self, x, z, k=1., isFirst = False):
         
-        self.y_pred_training = np.append(self.y_pred_training, y)
-        self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, 0)
+        if isFirst:
+            
+            # List of parameters
+            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), self.InitialPotential, k, 1., np.zeros([x.shape[0], 1]), 1., 1., np.ones([x.shape[0], 1]), np.ones([x.shape[0], 1]), np.zeros([x.shape[0], 1])])
+        
+        else:
+            
+            Theta = np.zeros((x.shape[0] + 1, 1))
+            # Update the lambda value for all rules
+            self.Lambda(x)
+            sigma = np.zeros([x.shape[0], 1])
+            for row in range(len(self.parameters_list)):
+                sigma += self.parameters_list[row][11]
+                Theta += self.parameters_list[row][9] * self.parameters_list[row][3]
+            sigma = sigma / len(self.parameters_list)
+            
+            # List of parameters
+            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.InitialPotential, k, 1., np.zeros([x.shape[0], 1]), 1., 1., np.ones([x.shape[0], 1]), sigma, np.zeros([x.shape[0], 1])])
     
-    def Initialize_Cluster(self, x, z, k, i):
-        Theta = np.zeros((x.shape[0] + 1, 1))
-        # Update the lambda value for all rules
-        self.Update_Lambda(x)
-        sigma = np.zeros([x.shape[0], 1])
-        for row in self.parameters.index:
-            sigma = sigma + self.parameters.loc[row, 'sigma'] 
-            Theta = Theta + self.parameters.loc[row, 'Lambda'] * self.parameters.loc[row, 'Theta']
-        sigma = sigma / self.parameters.shape[0]
-        NewRow = pd.DataFrame([[z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.InitialPotential, k, 1., np.zeros([x.shape[0], 1]), 1., np.ones([x.shape[0], 1]), sigma, np.zeros([x.shape[0], 1])]], columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Potential', 'TimeCreation', 'NumPoints', 'mu', 'Tau', 'r', 'sigma', 'increment_Center_x'])
-        self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
     
-    def Update_Rule_Potential(self, z, i, k):
+    def UpdateRulePotential(self, z, i, k):
         # Vectorized potential update
-        numerator = (k - 1) * self.parameters.loc[i, 'Potential']
-        denominator = k - 2 + self.parameters.loc[i, 'Potential'] + self.parameters.loc[i, 'Potential'] * self.Distance(z.T, self.parameters.loc[i, 'Center_Z'].T) ** 2
-        self.parameters.at[i, 'Potential'] = numerator / denominator
+        numerator = (k - 1) * self.parameters_list[i][4]
+        denominator = k - 2 + self.parameters_list[i][4] + self.parameters_list[i][4] * self.Distance(z.T, self.parameters_list[i][0].T) ** 2
+        self.parameters_list[i][4] = numerator / denominator
         
     def Distance(self, p1, p2):
         return np.linalg.norm(p1 - p2)
     
-    def Update_Data_Potential(self, z_prev, z, i, k):
+    def UpdateDataPotential(self, z_prev, z, k):
         self.Beta += z_prev
         self.Sigma += np.sum(z_prev ** 2)
         varTheta = np.sum(z ** 2)
         upsilon = np.sum(z * self.Beta)
         self.DataPotential = (k - 1) / ((k - 1) * (varTheta + 1) + self.Sigma - 2 * upsilon)
-
-    def Minimum_Distance(self, z):
-        distances = np.linalg.norm(self.parameters['Center_Z'].values - z, axis=1)
-        return np.min(distances)
                            
     def UpdateRule(self, x, z):
-        dist = []
-        idx = []
-        for row in self.parameters.index:
-            dist.append(np.linalg.norm(self.parameters.loc[row, 'Center_Z'] - z))
-            idx.append(row)
-        index = idx[dist.index(min(dist))]
         
-        self.parameters.at[index, 'NumPoints'] += 1
+        # Look for the most compatible rule
+        min_dist = np.inf
+        idx = 0
+        for row in range(len(self.parameters_list)):
+            dist = np.linalg.norm(self.parameters_list[row][0] - z)
+            if dist < min_dist:
+                idx = row
+                min_dist = dist
+        
+        # Update parameters of the closest rule with the input
+        self.parameters_list[idx][6] += 1
         # Efficiently update increment_Center_x and sigma
-        diff_Center_x = self.parameters.at[index, 'Center_X'] - x
-        self.parameters.at[index, 'increment_Center_x'] += diff_Center_x ** 2
-        self.parameters.at[index, 'sigma'] = np.sqrt(self.parameters.loc[index, 'increment_Center_x'] / self.parameters.loc[index, 'NumPoints'])
-        self.parameters.at[index, 'r'] = self.rho * self.parameters.loc[index, 'r'] + (1 - self.rho) * self.parameters.loc[index, 'sigma']
+        diff_Center_x = self.parameters_list[idx][1] - x
+        self.parameters_list[idx][12] += diff_Center_x ** 2
+        self.parameters_list[idx][11] = np.sqrt(self.parameters_list[idx][12] / self.parameters_list[idx][6])
+        self.parameters_list[idx][10] = self.rho * self.parameters_list[idx][10] + (1 - self.rho) * self.parameters_list[idx][11]
+        self.parameters_list[idx][0] = z
+        self.parameters_list[idx][1] = x
+        self.parameters_list[idx][4] = self.DataPotential
+    
+    def ComputeMu(self, x):
+        for row in range(len(self.parameters_list)):
+            x_shape = x.shape
+            mu = np.zeros([x_shape[0], 1])
+            for j in range(x_shape[0]):
+                mu[j,0] = math.exp( - np.linalg.norm( x[j,0] - self.parameters_list[row][1][j,0] )**2 / ( 2 * self.parameters_list[row][10][j,0] ** 2 ) )
+            self.parameters_list[row][7] = mu
         
-        # Update rule parameters
-        self.parameters.at[index, 'Center_Z'] = z
-        self.parameters.at[index, 'Center_X'] = x
-        self.parameters.at[index, 'Potential'] = self.DataPotential
-            
-    def Update_Lambda(self, x):
-        # Vectorized update of Lambda values
-        self.Compute_mu(x)
-        Total_Tau = np.sum(self.parameters['Tau'].values)
-        if Total_Tau == 0:
-            self.parameters['Lambda'] = 1.0 / len(self.parameters)
-        else:
-            self.parameters['Lambda'] = self.parameters['Tau'] / Total_Tau
-            
-    def Compute_mu(self, x):
-        for row in self.parameters.index:
-            mu = np.zeros([x.shape[0], 1])
-            for j in range(x.shape[0]):
-                mu[j,0] = math.exp( - np.linalg.norm( x[j,0] - self.parameters.loc[row, 'Center_X'][j,0] )**2 / ( 2 * self.parameters.loc[row, 'r'][j,0] ** 2 ) )
-            self.parameters.at[row, 'mu'] = mu
-            self.parameters.at[row, 'Tau'] = np.prod(mu)
+    def GaussianMF(self, v1, v2, sigma):
+        mf = np.zeros((v1.shape))
+        for j in range(v1.shape[0]):
+            denominator = (2 * sigma[j,0] ** 2)
+            if denominator != 0:
+                mf[j,0] = math.exp( - ( v1[j,0] - v2[j,0] ) ** 2 / denominator )
+            else:
+                mf[j,0] = math.exp( - ( v1[j,0] - v2[j,0] ) ** 2 / 2 )
+        return mf.prod()
     
-    def Remove_Rule(self, k):
-        N_total = np.sum(self.parameters['NumPoints'].values)
-        remove = self.parameters.index[self.parameters['NumPoints'] / N_total < self.epsilon]
-        if len(remove) > 0:
-            self.parameters = self.parameters.drop(remove)
+    def Tau(self, x):
+        # Compute tau
+        for row in range(len(self.parameters_list)):
+            tau = self.GaussianMF(x, self.parameters_list[row][1], self.parameters_list[row][10])
+            # Evoid tau with values zero
+            if abs(tau) < (10 ** -100):
+                tau = (10 ** -100)
+            self.parameters_list[row][8] = tau
+            
+    def Lambda(self, x):
+        
+        # Update the values of Tau
+        self.Tau(x)
+        
+        # Compute the sum of tau
+        tau_sum = 0
+        for i in range(len(self.parameters_list)):
+            tau_sum += self.parameters_list[i][8]
+        
+        # Compute lambda
+        for row in range(len(self.parameters_list)):
+            self.parameters_list[row][9] = self.parameters_list[row][8] / tau_sum
     
-    def RLS(self, x, y, xe):
-        self.Update_Lambda(x)
-        for row in self.parameters.index:
+    def RemoveRule(self, k):
+        
+        # Compute the total number of observations
+        N_total = 0
+        for row in range(len(self.parameters_list)):
+            N_total += self.parameters_list[row][6]
+        
+        # Find rules to remove
+        remove = [row for row in range(len(self.parameters_list)) if ((self.parameters_list[row][6] / N_total) < self.epsilon)]
+        
+        if remove:
             
-            # Extract frequently used values to avoid repeated lookups
-            lambda_val = self.parameters.loc[row, 'Lambda']
-            C = self.parameters.loc[row, 'C']
-            Theta = self.parameters.loc[row, 'Theta']
+            if len(remove) < len(self.parameters_list):
             
-            # Compute intermediate values once
-            xe_T_C = xe.T @ C
-            denominator = 1 + lambda_val * xe_T_C @ xe
+                # Update the parameters_list with the valid rules
+                self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
             
-            # Update the matrix C
-            C -= (lambda_val * C @ xe @ xe_T_C) / denominator
-            
-            # Update Theta
-            residual = y - xe.T @ Theta
-            Theta += (C @ xe * lambda_val * residual)
-            
-            # Save updated values back into the DataFrame
-            self.parameters.at[row, 'C'] = C
-            self.parameters.at[row, 'Theta'] = Theta
+    def RLS(self, xe, y):
+        for i in range(len(self.parameters_list)):
+            self.parameters_list[i][2] -= ((self.parameters_list[i][9] * self.parameters_list[i][2] @ xe @ xe.T @ self.parameters_list[i][2]) / (1 + self.parameters_list[i][9] * xe.T @ self.parameters_list[i][2] @ xe))
+            self.parameters_list[i][3] += self.parameters_list[i][2] @ xe * self.parameters_list[i][9] * (y - xe.T @ self.parameters_list[i][3])
+    
             
     
 class Simpl_eTS(base):
@@ -2760,7 +2987,7 @@ class Simpl_eTS(base):
         # Initialize the first rule
         self.Initialize_First_Cluster(x, y[0], z)
         # Update lambda of the first rule
-        self.Update_Lambda(x)
+        self.Lambda(x)
         # Update the consequent parameters of the fist rule
         self.RLS(x, y[0], xe)
         for k in range(1, X.shape[0]):
@@ -2781,7 +3008,7 @@ class Simpl_eTS(base):
             IdxMinScatter = self.parameters['Scatter'].astype('float64').idxmin()
             IdxMaxScatter = self.parameters['Scatter'].astype('float64').idxmax()
             # Compute minimum delta
-            Delta = self.Minimum_Distance(z)
+            Delta = self.MinimumDistance(z)
             # Verifying the needing to creating a new rule
             if (self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']) and Delta < 0.5 * self.r:
                 # Update an existing rule
@@ -2795,7 +3022,7 @@ class Simpl_eTS(base):
                 self.Update_Num_Points(z)
             # Remove unecessary rules
             if self.parameters.shape[0] > 1:
-                self.Remove_Rule(k+1)
+                self.RemoveRule(k+1)
             # Update consequent parameters
             self.RLS(x, y[k], xe)
             # Compute the number of rules at the current iteration
@@ -2878,7 +3105,7 @@ class Simpl_eTS(base):
             IdxMinScatter = self.parameters['Scatter'].astype('float64').idxmin()
             IdxMaxScatter = self.parameters['Scatter'].astype('float64').idxmax()
             # Compute minimum delta
-            Delta = self.Minimum_Distance(z)
+            Delta = self.MinimumDistance(z)
             # Verifying the needing to creating a new rule
             if (self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']) and Delta < 0.5 * self.r:
                 # Update an existing rule
@@ -2892,7 +3119,7 @@ class Simpl_eTS(base):
                 self.Update_Num_Points(z)
             # Remove unecessary rules
             if self.parameters.shape[0] > 1:
-                self.Remove_Rule(k+1)
+                self.RemoveRule(k+1)
             # Update consequent parameters
             self.RLS(x, y[k], xe)
             # Compute the number of rules at the current iteration
@@ -2930,7 +3157,7 @@ class Simpl_eTS(base):
             x = X[k,].reshape((1,-1)).T
             xe = np.insert(x.T, 0, 1, axis=1).T
             # Update lambda of all rules
-            self.Update_Lambda(x)
+            self.Lambda(x)
             
             # Compute and store the output
             Output = sum(
@@ -2960,7 +3187,7 @@ class Simpl_eTS(base):
     def Initialize_Cluster(self, x, z, k, i):
         Theta = np.zeros((x.shape[0] + 1, 1))
         # Update the lambda value for all rules
-        self.Update_Lambda(x)
+        self.Lambda(x)
         for row in self.parameters.index:
             Theta = Theta + self.parameters.loc[row, 'Lambda'] * self.parameters.loc[row, 'Theta']
         NewRow = pd.DataFrame([[z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.DataScatter.item(), k, 1.]], columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Scatter', 'TimeCreation', 'NumPoints'])
@@ -2978,7 +3205,7 @@ class Simpl_eTS(base):
         self.Theta = self.Sigma + sum(z_prev**2)
         self.DataScatter = (1 / ((k - 1) * (z.shape[0]))) * ((k - 1) * sum(z**2) - 2 * sum(z * self.Beta) + self.Theta)
         
-    def Minimum_Distance(self, z):
+    def MinimumDistance(self, z):
         distances = self.parameters['Center_Z'].apply(lambda Center: np.linalg.norm(Center - z))
         return distances.min()
                               
@@ -2994,7 +3221,7 @@ class Simpl_eTS(base):
         index = distances.idxmin()
         self.parameters.at[index, 'NumPoints'] += 1
         
-    def Update_Lambda(self, x):
+    def Lambda(self, x):
         self.parameters['Tau'] = self.parameters['Center_X'].apply(lambda Center: self.mu(Center, x))
         total_tau = self.parameters['Tau'].sum()
         self.parameters['Lambda'] = self.parameters['Tau'] / total_tau
@@ -3004,7 +3231,7 @@ class Simpl_eTS(base):
         tau = np.prod(1 + squared_diff)
         return 1 / tau
     
-    def Remove_Rule(self, k):
+    def RemoveRule(self, k):
         N_total = 0
         for i in self.parameters.index:
             N_total = N_total + self.parameters.loc[i, 'NumPoints']
@@ -3016,7 +3243,7 @@ class Simpl_eTS(base):
             self.parameters = self.parameters.drop(remove)
             
     def RLS(self, x, y, xe):
-        self.Update_Lambda(x)
+        self.Lambda(x)
         for row in self.parameters.index:
             
             # Extract frequently used values to avoid repeated lookups
@@ -3139,7 +3366,7 @@ class eTS(base):
         
         # Initialize the first rule
         self.Initialize_First_Cluster(x, y[0], z)
-        self.Update_Lambda(x)  # Update lambda of the first rule
+        self.Lambda(x)  # Update lambda of the first rule
         self.RLS(x, y[0], xe)  # Update the consequent parameters of the first rule
         
         for k in range(1, n_samples):
@@ -3157,15 +3384,15 @@ class eTS(base):
             
             # Compute the potential for all rules
             for i in self.parameters.index:
-                self.Update_Rule_Potential(z, i)
+                self.UpdateRulePotential(z, i)
                 
             # Compute the data potential
-            self.Update_Data_Potential(z_prev, z, i)
+            self.UpdateDataPotential(z_prev, z)
             # Find the rule with the maximum potential
             IdxMaxPotential = self.parameters['Potential'].astype('float64').idxmax()
             
             # Compute minimum delta
-            Delta = self.Minimum_Distance(z)
+            Delta = self.MinimumDistance(z)
             DataPotentialRatio = self.DataPotential.item() / self.parameters.loc[IdxMaxPotential, 'Potential']
             
             if self.DataPotential.item() > self.parameters.loc[IdxMaxPotential, 'Potential'] and DataPotentialRatio - Delta / self.r >= 1.:
@@ -3253,14 +3480,14 @@ class eTS(base):
             
             # Compute the potential for all rules
             for i in self.parameters.index:
-                self.Update_Rule_Potential(z, i)
+                self.UpdateRulePotential(z, i)
                 
             # Compute the data potential
-            self.Update_Data_Potential(z_prev, z, i)
+            self.UpdateDataPotential(z_prev, z)
             # Find the rule with the maximum potential
             IdxMaxPotential = self.parameters['Potential'].astype('float64').idxmax()
             # Compute minimum delta
-            Delta = self.Minimum_Distance(z)
+            Delta = self.MinimumDistance(z)
             DataPotentialRatio = self.DataPotential.item() / self.parameters.loc[IdxMaxPotential, 'Potential']
             
             if self.DataPotential.item() > self.parameters.loc[IdxMaxPotential, 'Potential'] and DataPotentialRatio - Delta / self.r >= 1.:
@@ -3312,7 +3539,7 @@ class eTS(base):
             xe = np.insert(x.T, 0, 1, axis=1).T
             
             # Update lambda of all rules
-            self.Update_Lambda(x)
+            self.Lambda(x)
             
             # Verify if lambda is nan
             if np.isnan(self.parameters['Lambda']).any():
@@ -3361,7 +3588,7 @@ class eTS(base):
         }
         self.parameters = pd.concat([self.parameters, pd.DataFrame([new_row])], ignore_index=True)
 
-    def Update_Rule_Potential(self, z, i):
+    def UpdateRulePotential(self, z, i):
         dist = self.Distance(z.T, self.parameters.loc[i, 'Center_Z'].T)
         numerator = (self.k - 1) * self.parameters.loc[i, 'Potential']
         denominator = (self.k - 2 + self.parameters.loc[i, 'Potential'] +
@@ -3372,14 +3599,14 @@ class eTS(base):
         distance = np.linalg.norm(p1 - p2)
         return distance
     
-    def Update_Data_Potential(self, z_prev, z, i):
+    def UpdateDataPotential(self, z_prev, z):
         self.Beta = self.Beta + z_prev
         self.Sigma = self.Sigma + sum(z_prev**2)
         varTheta = sum(z**2)
         upsilon = sum(z*self.Beta)
         self.DataPotential = ((self.k - 1)) / ((self.k - 1) * (varTheta + 1) + self.Sigma - 2*upsilon)
         
-    def Minimum_Distance(self, z):
+    def MinimumDistance(self, z):
         distances = np.linalg.norm(np.stack(self.parameters['Center_Z']) - z, axis=1)
         return np.min(distances)
                            
@@ -3391,7 +3618,7 @@ class eTS(base):
         self.parameters.at[index, 'Center_X'] = x
         self.parameters.at[index, 'Potential'] = self.DataPotential
             
-    def Update_Lambda(self, x):
+    def Lambda(self, x):
         self.parameters['Tau'] = self.parameters['Center_X'].apply(
             lambda Center_x: self.mu(Center_x, x)
         )
@@ -3407,7 +3634,7 @@ class eTS(base):
         return tau
     
     def RLS(self, x, y, xe):
-        self.Update_Lambda(x)
+        self.Lambda(x)
         for row in self.parameters.index:
             
             # Extract frequently used values to avoid repeated lookups
