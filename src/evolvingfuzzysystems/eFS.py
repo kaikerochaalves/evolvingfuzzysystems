@@ -38,6 +38,8 @@ class base():
         self.ResidualTrainingPhase = None
         # Computing the output in the testing phase
         self.y_pred_test = None
+        # Store k for the evolving phase
+        self.k = 1.
     
     def n_rules(self):
         return self.rules[-1]
@@ -113,7 +115,7 @@ class ePL_KRLS_DISCO(base):
         
         return rules
     
-    def plot_rules(self, num_points=100):
+    def plot_rules(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         # Set plot-wide configurations only once
         plt.rc('font', size=13)
         plt.rc('axes', titlesize=15)
@@ -149,9 +151,12 @@ class ePL_KRLS_DISCO(base):
     
         # Adjust layout for better spacing
         plt.tight_layout()
+        # Save
+        if save:
+            plt.savefig(f'Rules_ePLKRLSDISCO.{format_save}', format=format_save, dpi=dpi)
         plt.show()
     
-    def plot_gaussians(self, num_points=100):
+    def plot_gaussians(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
         plt.rc('axes', titlesize=30)
@@ -171,12 +176,14 @@ class ePL_KRLS_DISCO(base):
                 plt.xlabel('Values')
                 plt.ylabel('Membership')
                 plt.legend()
-                plt.grid(False)
-                
+                plt.grid(grid)
+                # Save
+                if save:
+                    plt.savefig(f'Gaussians_Rule{i}_Att{j}_ePLKRLSDISCO.{format_save}', format=format_save, dpi=dpi)
                 # Display the plot
                 plt.show()
                 
-    def plot_rules_evolution(self):
+    def plot_rules_evolution(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
@@ -188,8 +195,10 @@ class ePL_KRLS_DISCO(base):
         plt.title('Evolution of the Rules for Training Phase')
         plt.xlabel('Samples')
         plt.ylabel('Number of Rules')
-        plt.grid(False)
-        
+        plt.grid(grid)
+        # Save
+        if save:
+            plt.savefig(f'RulesEvolution_ePLKRLSDISCO.{format_save}', format=format_save, dpi=dpi)
         # Display the plot
         plt.show()
  
@@ -244,9 +253,12 @@ class ePL_KRLS_DISCO(base):
         # Prepare the first input vector
         x = X[0,].reshape((1,-1)).T
         # Initialize the first rule
-        self.NewRule(x, y[0], 1., None, True)
+        self.NewRule(x, y[0], None, True)
         
         for k in range(1, X.shape[0]):
+            
+            # Update self k
+            self.k += 1
             
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
@@ -270,7 +282,7 @@ class ePL_KRLS_DISCO(base):
             # Verify the needing to creating a new rule
             if MinArousal > self.tau and self.ExcludedRule == 0 and self.epsilon != []:
                 # Create a new rule
-                self.NewRule(x, y[k], k+1, MaxCompatibilityIdx, False)
+                self.NewRule(x, y[k], MaxCompatibilityIdx, False)
                 # Save the position of the created rule
                 MaxCompatibility = 1.
                 MaxCompatibilityIdx = len(self.parameters_list) - 1
@@ -297,7 +309,7 @@ class ePL_KRLS_DISCO(base):
             
             # Check wheather it is necessary to remove a rule
             if len(self.parameters_list) > 1:
-                self.UtilityMeasure(X[k,], k+1)
+                self.UtilityMeasure(X[k,])
                 
             # Update epsilon and e_til
             quociente = math.exp(-0.8 * self.eTil[-1] - residual)
@@ -367,6 +379,9 @@ class ePL_KRLS_DISCO(base):
         
         for k in range(X.shape[0]):
             
+            # Update self k
+            self.k += 1
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
             
@@ -389,7 +404,7 @@ class ePL_KRLS_DISCO(base):
             # Verify the needing to creating a new rule
             if MinArousal > self.tau and self.ExcludedRule == 0 and self.epsilon != []:
                 # Create a new rule
-                self.NewRule(x, y[k], k+1, MaxCompatibilityIdx, False)
+                self.NewRule(x, y[k], MaxCompatibilityIdx, False)
                 # Save the position of the created rule
                 MaxCompatibility = 1.
                 MaxCompatibilityIdx = len(self.parameters_list) - 1
@@ -417,7 +432,7 @@ class ePL_KRLS_DISCO(base):
             
             # Check wheather it is necessary to remove a rule
             if len(self.parameters_list) > 1:
-                self.UtilityMeasure(X[k,], k+1)
+                self.UtilityMeasure(X[k,])
                 
             # Update epsilon and e_til
             quociente = math.exp(-0.8 * self.eTil[-1] - residual)
@@ -482,14 +497,14 @@ class ePL_KRLS_DISCO(base):
         
         return self.y_pred_test
             
-    def NewRule(self, x, y, k=1., i=None, isFirst = False):
+    def NewRule(self, x, y, i=None, isFirst = False):
         
         if isFirst:
             
             kernel_value = self.GaussianKernel(x, x)
             Q = np.linalg.inv(np.ones((1,1)) * (self.lambda1 + kernel_value))
             Theta = Q*y
-            self.parameters_list.append([x, x, float(self.sigma), np.ones((1,1)), Q, Theta, 0., 1., 0., 1., k, 1., np.zeros((x.shape[0],1)), 1., 0.])
+            self.parameters_list.append([x, x, float(self.sigma), np.ones((1,1)), Q, Theta, 0., 1., 0., 1., self.k, 1., np.zeros((x.shape[0],1)), 1., 0.])
         
         else:
             
@@ -500,7 +515,7 @@ class ePL_KRLS_DISCO(base):
             distance = np.linalg.norm(x - self.parameters_list[i][0])
             log_epsilon = math.sqrt(-2 * np.log(max(self.epsilon)))
             nu = float(distance / log_epsilon)
-            self.parameters_list.append([x, x, nu, np.ones((1,1)), Q, Theta, 0., 1., 0., 1., k, 1., np.zeros((x.shape[0],1)), 1., 0.])
+            self.parameters_list.append([x, x, nu, np.ones((1,1)), Q, Theta, 0., 1., 0., 1., self.k, 1., np.zeros((x.shape[0],1)), 1., 0.])
     
     def CompatibilityMeasure(self, x, i):
         
@@ -595,13 +610,13 @@ class ePL_KRLS_DISCO(base):
             # Update the sum of lambda
             self.parameters_list[i][8] += self.parameters_list[i][14]
             
-    def UtilityMeasure(self, x, k):
+    def UtilityMeasure(self, x):
         
         remove = []
         for i in range(len(self.parameters_list)):
             
             # Compute how long ago the rule was created
-            time_diff = k - self.parameters_list[i][10]
+            time_diff = self.k - self.parameters_list[i][10]
             
             # Compute the utilit measure
             self.parameters_list[i][7] = self.parameters_list[i][8] / time_diff if time_diff != 0 else 1
@@ -753,7 +768,7 @@ class ePL_plus(base):
         
         return rules
     
-    def plot_rules(self, num_points=100):
+    def plot_rules(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         
         # Warning for this function
         warnings.warn("ePL+ does not compute the standard deviation; it calculates the radius, which is different. As a result, the Gaussians may not be meaningful.", UserWarning)
@@ -794,9 +809,12 @@ class ePL_plus(base):
     
         # Adjust layout for better spacing
         plt.tight_layout()
+        # Save
+        if save:
+            plt.savefig(f'Rules_ePLplus.{format_save}', format=format_save, dpi=dpi)
         plt.show()
     
-    def plot_gaussians(self, num_points=100):
+    def plot_gaussians(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         
         # Warning for this function
         warnings.warn("ePL+ does not compute the standard deviation; it calculates the radius, which is different. As a result, the Gaussians may not be meaningful.", UserWarning)
@@ -820,12 +838,14 @@ class ePL_plus(base):
                 plt.xlabel('Values')
                 plt.ylabel('Membership')
                 plt.legend()
-                plt.grid(False)
-                
+                plt.grid(grid)
+                # Save
+                if save:
+                    plt.savefig(f'Gaussians_Rule{i}_Att{j}_ePLplus.{format_save}', format=format_save, dpi=dpi)
                 # Display the plot
                 plt.show()
                 
-    def plot_rules_evolution(self):
+    def plot_rules_evolution(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
@@ -837,8 +857,10 @@ class ePL_plus(base):
         plt.title('Evolution of the Rules for Training Phase')
         plt.xlabel('Samples')
         plt.ylabel('Number of Rules')
-        plt.grid(False)
-        
+        plt.grid(grid)
+        # Save
+        if save:
+            plt.savefig(f'RulesEvolution_ePLplus.{format_save}', format=format_save, dpi=dpi)
         # Display the plot
         plt.show()
          
@@ -908,6 +930,9 @@ class ePL_plus(base):
         
         for k in range(1, X.shape[0]):
             
+            # Update self k
+            self.k += 1
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
             # Compute xe
@@ -933,7 +958,7 @@ class ePL_plus(base):
             
             # Verify the needing to creating a new rule
             if MinArousal > self.tau:
-                self.NewRule(x, y[k], z, k+1, False)
+                self.NewRule(x, y[k], z, False)
             else:
                 self.UpdateRule(x, y[k], z, MaxCompatibilityIdx)
             
@@ -952,7 +977,7 @@ class ePL_plus(base):
             
             # Utility Measure
             if len(self.parameters_list) > 1:
-                self.UtilityMeasure(X[k,], k+1)
+                self.UtilityMeasure(X[k,])
                 
             # Compute the output
             Output = sum([self.parameters_list[row][7] * xe.T @ self.parameters_list[row][2] for row in range(len(self.parameters_list))])
@@ -1010,6 +1035,9 @@ class ePL_plus(base):
             
         for k in range(1, X.shape[0]):
             
+            # Update self k
+            self.k += 1
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
             # Compute xe
@@ -1035,7 +1063,7 @@ class ePL_plus(base):
             
             # Verify the needing to creating a new rule
             if MinArousal > self.tau:
-                self.NewRule(x, y[k], z, k+1, False)
+                self.NewRule(x, y[k], z, False)
             else:
                 self.UpdateRule(x, y[k], z, MaxCompatibilityIdx)
             
@@ -1054,7 +1082,7 @@ class ePL_plus(base):
             
             # Utility Measure
             if len(self.parameters_list) > 1:
-                self.UtilityMeasure(X[k,], k+1)
+                self.UtilityMeasure(X[k,])
                 
             # Compute the output
             Output = sum([self.parameters_list[row][7] * xe.T @ self.parameters_list[row][2] for row in range(len(self.parameters_list))])
@@ -1104,17 +1132,17 @@ class ePL_plus(base):
             
         return self.y_pred_test
             
-    def NewRule(self, x, y, z, k=1., isFirst = False):
+    def NewRule(self, x, y, z, isFirst = False):
         
         if isFirst:
             
             # List of parameters
-            self.parameters_list.append([x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0], 1, 0.))])
+            self.parameters_list.append([x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., self.k, 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0], 1)), 0.])
         
         else:
             
             # List of parameters
-            self.parameters_list.append([x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0] + 1, 1)), 0.])
+            self.parameters_list.append([x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., self.k, 1., 0., 0., 1., self.sigma * np.ones((x.shape[0] + 1, 1)), 1., z, np.zeros((x.shape[0] + 1, 1)), np.zeros((x.shape[0] + 1, 1)), 0.])
         
     def CompatibilityMeasure(self, x, i):
         
@@ -1181,14 +1209,14 @@ class ePL_plus(base):
         # Update the cluster radius
         self.parameters_list[i][10] = self.pi * self.parameters_list[i][10] + ( 1 - self.pi) * self.parameters_list[i][14]
     
-    def UtilityMeasure(self, x, k):
+    def UtilityMeasure(self, x):
         
         # List of rows to remove
         remove = []
         for i in range(len(self.parameters_list)):
             
             # Compute how long ago the rule was created
-            time_diff = k - self.parameters_list[i][5]
+            time_diff = self.k - self.parameters_list[i][5]
             
             # Compute the utilit measure
             self.parameters_list[i][9] = self.parameters_list[i][8] / time_diff if time_diff != 0 else 1
@@ -1295,7 +1323,7 @@ class eMG(base):
         
         return rules
     
-    def plot_rules(self, num_points=100):
+    def plot_rules(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         # Set plot-wide configurations only once
         plt.rc('font', size=13)
         plt.rc('axes', titlesize=15)
@@ -1332,9 +1360,12 @@ class eMG(base):
     
         # Adjust layout for better spacing
         plt.tight_layout()
+        # Save
+        if save:
+            plt.savefig(f'Rules_eMG.{format_save}', format=format_save, dpi=dpi)
         plt.show()
     
-    def plot_gaussians(self, num_points=100):
+    def plot_gaussians(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
         plt.rc('axes', titlesize=30)
@@ -1354,12 +1385,14 @@ class eMG(base):
                 plt.xlabel('Values')
                 plt.ylabel('Membership')
                 plt.legend()
-                plt.grid(False)
-                
+                plt.grid(grid)
+                # Save
+                if save:
+                    plt.savefig(f'Gaussians_Rule{i}_Att{j}_eMG.{format_save}', format=format_save, dpi=dpi)
                 # Display the plot
                 plt.show()
             
-    def plot_2d_projections(self, num_points=100):
+    def plot_2d_projections(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
                 
         """
         Plots 2D projections of 4D Gaussian distributions in a grid of subfigures.
@@ -1415,9 +1448,12 @@ class eMG(base):
                 ax.set_aspect('equal')
     
         plt.tight_layout()
+        # Save
+        if save:
+            plt.savefig(f'Projections2D_eMG.{format_save}', format=format_save, dpi=dpi)
         plt.show()
         
-    def plot_rules_evolution(self):
+    def plot_rules_evolution(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
@@ -1429,8 +1465,10 @@ class eMG(base):
         plt.title('Evolution of the Rules for Training Phase')
         plt.xlabel('Samples')
         plt.ylabel('Number of Rules')
-        plt.grid(False)
-        
+        plt.grid(grid)
+        # Save
+        if save:
+            plt.savefig(f'RulesEvolution_eMG.{format_save}', format=format_save, dpi=dpi)
         # Display the plot
         plt.show()
          
@@ -1496,6 +1534,9 @@ class eMG(base):
         self.RLS_NewRule(xk, y[0], 0)
         
         for k in range(1,X.shape[0]):
+            
+            # Update self k
+            self.k += 1
                         
             # Prepare inputs
             xk = np.insert(X[k,], 0, 1, axis=0).reshape(1,-1)
@@ -1604,6 +1645,9 @@ class eMG(base):
             )
         
         for k in range(X.shape[0]):
+            
+            # Update self k
+            self.k += 1
             
             # Prepare inputs
             xk = np.insert(X[k,], 0, 1, axis=0).reshape(1,-1)
@@ -1716,8 +1760,8 @@ class eMG(base):
         return self.y_pred_test
     
     def validate_vector(self, u, dtype=None):
-        # XXX Is order='c' really necessary?
-        u = np.asarray(u, dtype=dtype, order='c')
+        
+        u = np.asarray(u, dtype=dtype)
         if u.ndim == 1:
             return u
 
@@ -1903,7 +1947,7 @@ class ePL(base):
         
         return rules
     
-    def plot_rules(self, num_points=100):
+    def plot_rules(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         # Set plot-wide configurations only once
         plt.rc('font', size=13)
         plt.rc('axes', titlesize=15)
@@ -1939,9 +1983,12 @@ class ePL(base):
     
         # Adjust layout for better spacing
         plt.tight_layout()
+        # Save
+        if save:
+            plt.savefig(f'Rules_ePL.{format_save}', format=format_save, dpi=dpi)
         plt.show()
     
-    def plot_gaussians(self, num_points=100):
+    def plot_gaussians(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
         plt.rc('axes', titlesize=30)
@@ -1961,12 +2008,14 @@ class ePL(base):
                 plt.xlabel('Values')
                 plt.ylabel('Membership')
                 plt.legend()
-                plt.grid(False)
-                
+                plt.grid(grid)
+                # Save
+                if save:
+                    plt.savefig(f'Gaussians_Rule{i}_Att{j}_ePL.{format_save}', format=format_save, dpi=dpi)
                 # Display the plot
                 plt.show()
     
-    def plot_rules_evolution(self):
+    def plot_rules_evolution(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
@@ -1978,8 +2027,10 @@ class ePL(base):
         plt.title('Evolution of the Rules for Training Phase')
         plt.xlabel('Samples')
         plt.ylabel('Number of Rules')
-        plt.grid(False)
-        
+        plt.grid(grid)
+        # Save
+        if save:
+            plt.savefig(f'RulesEvolution_ePL.{format_save}', format=format_save, dpi=dpi)
         # Display the plot
         plt.show()
         
@@ -2037,12 +2088,15 @@ class ePL(base):
         self.ResidualTrainingPhase[0,] = 0.
         
         # Initialize the first rule
-        self.NewRule(x, y[0], 0, True)
+        self.NewRule(x, y[0], True)
                 
         # Update the consequent parameters of the fist rule
         self.RLS(x, y[0], xe)
         
         for k in range(1, X.shape[0]):
+            
+            # Update self k
+            self.k += 1
             
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
@@ -2067,7 +2121,7 @@ class ePL(base):
             
             # Verifying the needing to creating a new rule
             if MinArousal > self.tau:
-                self.NewRule(x, y[k], k+1, False)
+                self.NewRule(x, y[k], False)
             else:
                 self.UpdateRule(x, y[k], MaxCompatibilityIdx)
             if len(self.parameters_list) > 1:
@@ -2138,6 +2192,9 @@ class ePL(base):
         
         for k in range(X.shape[0]):
             
+            # Update self k
+            self.k += 1
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
             # Compute xe
@@ -2161,7 +2218,7 @@ class ePL(base):
             
             # Verifying the needing to creating a new rule
             if MinArousal > self.tau:
-                self.NewRule(x, y[k], k+1, False)
+                self.NewRule(x, y[k], False)
             else:
                 self.UpdateRule(x, y[k], MaxCompatibilityIdx)
             if len(self.parameters_list) > 1:
@@ -2225,17 +2282,17 @@ class ePL(base):
             
         return self.y_pred_test
     
-    def NewRule(self, x, y, k=1., isFirst = False):
+    def NewRule(self, x, y, isFirst = False):
         
         if isFirst:
             
             # List of parameters
-            self.parameters_list.append([x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., 1., 1., 1., 1.])
+            self.parameters_list.append([x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., self.k, 1., 1., 1.])
         
         else:
             
             # List of parameters
-            self.parameters_list.append([x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., k, 1., 1., 1.])
+            self.parameters_list.append([x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., self.k, 1., 1., 1.])
     
     def CompatibilityMeasure(self, x, i):
         
@@ -2382,7 +2439,7 @@ class exTS(base):
         
         return rules
     
-    def plot_rules(self, num_points=100):
+    def plot_rules(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         # Set plot-wide configurations only once
         plt.rc('font', size=13)
         plt.rc('axes', titlesize=15)
@@ -2418,9 +2475,12 @@ class exTS(base):
     
         # Adjust layout for better spacing
         plt.tight_layout()
+        # Save
+        if save:
+            plt.savefig(f'Rules_exTS.{format_save}', format=format_save, dpi=dpi)
         plt.show()
     
-    def plot_gaussians(self, num_points=100):
+    def plot_gaussians(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
         plt.rc('axes', titlesize=30)
@@ -2440,12 +2500,14 @@ class exTS(base):
                 plt.xlabel('Values')
                 plt.ylabel('Membership')
                 plt.legend()
-                plt.grid(False)
-                
+                plt.grid(grid)
+                # Save
+                if save:
+                    plt.savefig(f'Gaussians_Rule{i}_Att{j}_exTS.{format_save}', format=format_save, dpi=dpi)
                 # Display the plot
                 plt.show()
             
-    def plot_rules_evolution(self):
+    def plot_rules_evolution(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
         
         # Set plot-wide configurations only once
         plt.rc('font', size=30)
@@ -2457,8 +2519,10 @@ class exTS(base):
         plt.title('Evolution of the Rules for Training Phase')
         plt.xlabel('Samples')
         plt.ylabel('Number of Rules')
-        plt.grid(False)
-        
+        plt.grid(grid)
+        # Save
+        if save:
+            plt.savefig(f'RulesEvolution_exTS.{format_save}', format=format_save, dpi=dpi)
         # Display the plot
         plt.show()
          
@@ -2518,7 +2582,7 @@ class exTS(base):
         self.ResidualTrainingPhase[0,] = 0.
         
         # Initialize the first rule
-        self.NewRule(x, y[0], z, True)
+        self.NewRule(x, z, True)
         
         # Compute the normalized firing level
         self.Lambda(x)
@@ -2527,6 +2591,9 @@ class exTS(base):
         self.RLS(xe, y[0])
         
         for k in range(1, X.shape[0]):
+            
+            # Update self k
+            self.k += 1
                         
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
@@ -2542,10 +2609,10 @@ class exTS(base):
             
             # Compute the potential for all rules
             for i in self.parameters.index:
-                self.UpdateRulePotential(z, i, k+1)
+                self.UpdateRulePotential(z, i)
                 
             # Compute the data potential
-            self.UpdateDataPotential(z_prev, z, k+1)
+            self.UpdateDataPotential(z_prev, z)
             
             # Update mu values
             self.ComputeMu(x)
@@ -2571,11 +2638,11 @@ class exTS(base):
                     self.UpdateRule(x, z)
                 else:
                     # Create a new rule
-                    self.NewRule(x, z, k+1)
+                    self.NewRule(x, z)
                     
             # Remove unecessary rules
             if len(self.parameters_list) > 1:
-                self.RemoveRule(k+1)
+                self.RemoveRule()
             
             # Update Lambda
             self.Lambda(x)
@@ -2650,7 +2717,10 @@ class exTS(base):
         # Recover the last z
         z = self.z_last
         
-        for k in range(1, X.shape[0]):
+        for k in range(X.shape[0]):
+            
+            # Update self k
+            self.k += 1
             
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
@@ -2666,10 +2736,10 @@ class exTS(base):
             
             # Compute the potential for all rules
             for i in range(len(self.parameters_list)):
-                self.UpdateRulePotential(z, i, k+1)
+                self.UpdateRulePotential(z, i)
                 
             # Compute the data potential
-            self.UpdateDataPotential(z_prev, z, k+1)
+            self.UpdateDataPotential(z_prev, z)
             
             # Update mu values
             self.ComputeMu(x)
@@ -2695,11 +2765,11 @@ class exTS(base):
                     self.UpdateRule(x, z)
                 else:
                     # Create a new rule
-                    self.NewRule(x, z, k+1)
+                    self.NewRule(x, z)
                     
             # Remove unecessary rules
             if len(self.parameters_list) > 1:
-                self.RemoveRule(k+1)
+                self.RemoveRule()
                 
             # Update Lambda
             self.Lambda(x)
@@ -2768,12 +2838,12 @@ class exTS(base):
             
         return self.y_pred_test
         
-    def NewRule(self, x, z, k=1., isFirst = False):
+    def NewRule(self, x, z, isFirst = False):
         
         if isFirst:
             
             # List of parameters
-            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), self.InitialPotential, k, 1., np.zeros([x.shape[0], 1]), 1., 1., np.ones([x.shape[0], 1]), np.ones([x.shape[0], 1]), np.zeros([x.shape[0], 1])])
+            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), self.InitialPotential, self.k, 1., np.zeros([x.shape[0], 1]), 1., 1., np.ones([x.shape[0], 1]), np.ones([x.shape[0], 1]), np.zeros([x.shape[0], 1])])
         
         else:
             
@@ -2787,24 +2857,23 @@ class exTS(base):
             sigma = sigma / len(self.parameters_list)
             
             # List of parameters
-            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.InitialPotential, k, 1., np.zeros([x.shape[0], 1]), 1., 1., np.ones([x.shape[0], 1]), sigma, np.zeros([x.shape[0], 1])])
+            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.InitialPotential, self.k, 1., np.zeros([x.shape[0], 1]), 1., 1., np.ones([x.shape[0], 1]), sigma, np.zeros([x.shape[0], 1])])
     
-    
-    def UpdateRulePotential(self, z, i, k):
+    def UpdateRulePotential(self, z, i):
         # Vectorized potential update
-        numerator = (k - 1) * self.parameters_list[i][4]
-        denominator = k - 2 + self.parameters_list[i][4] + self.parameters_list[i][4] * self.Distance(z.T, self.parameters_list[i][0].T) ** 2
+        numerator = (self.k - 1) * self.parameters_list[i][4]
+        denominator = self.k - 2 + self.parameters_list[i][4] + self.parameters_list[i][4] * self.Distance(z.T, self.parameters_list[i][0].T) ** 2
         self.parameters_list[i][4] = numerator / denominator
         
     def Distance(self, p1, p2):
         return np.linalg.norm(p1 - p2)
     
-    def UpdateDataPotential(self, z_prev, z, k):
+    def UpdateDataPotential(self, z_prev, z):
         self.Beta += z_prev
         self.Sigma += np.sum(z_prev ** 2)
         varTheta = np.sum(z ** 2)
         upsilon = np.sum(z * self.Beta)
-        self.DataPotential = (k - 1) / ((k - 1) * (varTheta + 1) + self.Sigma - 2 * upsilon)
+        self.DataPotential = (self.k - 1) / ((self.k - 1) * (varTheta + 1) + self.Sigma - 2 * upsilon)
                            
     def UpdateRule(self, x, z):
         
@@ -2869,7 +2938,7 @@ class exTS(base):
         for row in range(len(self.parameters_list)):
             self.parameters_list[row][9] = self.parameters_list[row][8] / tau_sum
     
-    def RemoveRule(self, k):
+    def RemoveRule(self):
         
         # Compute the total number of observations
         N_total = 0
@@ -2891,11 +2960,9 @@ class exTS(base):
             self.parameters_list[i][2] -= ((self.parameters_list[i][9] * self.parameters_list[i][2] @ xe @ xe.T @ self.parameters_list[i][2]) / (1 + self.parameters_list[i][9] * xe.T @ self.parameters_list[i][2] @ xe))
             self.parameters_list[i][3] += self.parameters_list[i][2] @ xe * self.parameters_list[i][9] * (y - xe.T @ self.parameters_list[i][3])
     
-            
-    
 class Simpl_eTS(base):
     
-    def __init__(self, omega = 1000, r = 0.1):
+    def __init__(self, omega = 1000, r = 0.1, epsilon = 0.01):
         
         # Call __init__ of the base class
         super().__init__()
@@ -2908,10 +2975,10 @@ class Simpl_eTS(base):
         # Hyperparameters
         self.omega = omega
         self.r = r
+        self.epsilon = epsilon
         
         # Model's parameters
         self.parameters = pd.DataFrame(columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Scatter', 'TimeCreation', 'NumPoints', 'Tau', 'Lambda'])
-        self.ThresholdRemoveRules = 0.01
         self.InitialScatter = 0.
         self.DataScatter = 0.
         self.InitialTheta = 0.
@@ -2919,19 +2986,12 @@ class Simpl_eTS(base):
         self.Beta = 0.
         self.Sigma = 0.
         self.z_last = None
-        # Evolution of the model rules
-        self.rules = []
-        # Computing the output in the training phase
-        self.y_pred_training = np.array([])
-        # Computing the residual square in the ttraining phase
-        self.ResidualTrainingPhase = np.array([])
-        # Computing the output in the testing phase
-        self.y_pred_test = np.array([])
     
     def get_params(self, deep=True):
         return {
             'omega': self.omega,
             'r': self.r,
+            'epsilon': self.epsilon,
         }
 
     def set_params(self, **params):
@@ -2941,25 +3001,127 @@ class Simpl_eTS(base):
     
     def is_numeric_and_finite(self, array):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
+    
+    def show_rules(self):
+        rules = []
+        for i in self.parameters.index:
+            rule = f"Rule {i}"
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                rule = f'{rule} - {self.parameters.loc[i,"Center"][j].item():.2f} ({self.r:.2f})'
+            print(rule)
+            rules.append(rule)
+        
+        return rules
+    
+    def plot_rules(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=13)
+        plt.rc('axes', titlesize=15)
+        # plt.figure(figsize=(19.20, 10.80))
+    
+        # Determine the number of rules (rows) and attributes per rule
+        num_rules = len(self.parameters.index)
+        num_attributes = self.parameters.loc[self.parameters.index[0], "Center"].shape[0]
+    
+        # Create a figure with subplots (one per rule)
+        fig, axes = plt.subplots(num_rules, 1, figsize=(8, num_rules * 4), squeeze=False, sharey=True)
+    
+        # Iterate through rules
+        for i, rule_idx in enumerate(self.parameters.index):
+            ax = axes[i, 0]  # Select the subplot for the rule
+            
+            # Iterate through all attributes and plot them in the same subplot
+            for j in range(num_attributes):
+                center = self.parameters.loc[rule_idx, "Center"][j]
+                x_vals = np.linspace(center - 3 * self.r, center + 3 * self.r, num_points)
+                y_vals = np.exp(-((x_vals - center) ** 2) / (2 * self.r ** 2))
+                
+                ax.plot(x_vals, y_vals, linewidth=3, label=f'Attr {j}: μ={center.item():.2f}, σ={self.r:.2f}')
+            
+            # Subplot settings
+            ax.set_title(f'Rule {rule_idx}')
+            ax.legend(loc="lower center", ncol=2)
+            ax.grid(False)
+    
+        # Set a single y-label for the entire figure
+        fig.supylabel("Membership")
+        fig.supxlabel("Values")
+    
+        # Adjust layout for better spacing
+        plt.tight_layout()
+        # Save
+        if save:
+            plt.savefig(f'Rules_SimpleTS.{format_save}', format=format_save, dpi=dpi)
+        plt.show()
+    
+    def plot_gaussians(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+        
+        # Iterate through rules and attributes
+        for i in self.parameters.index:
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                
+                # Generate x values for smooth curve
+                x_vals = np.linspace(self.parameters.loc[i,"Center"][j] - 3*self.r, self.parameters.loc[i,"Center"][j] + 3*self.r, num_points)
+                y_vals = np.exp(-((x_vals - self.parameters.loc[i,"Center"][j])**2) / (2 * self.r**2))
+                
+                # Create and configure the plot
+                plt.figure(figsize=(19.20, 10.80))
+                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.r:.2f})')
+                plt.title(f'Rule {i} - Attribute {j}')
+                plt.xlabel('Values')
+                plt.ylabel('Membership')
+                plt.legend()
+                plt.grid(grid)
+                # Save
+                if save:
+                    plt.savefig(f'Gaussians_Rule{i}_Att{j}_SimpleTS.{format_save}', format=format_save, dpi=dpi)
+                # Display the plot
+                plt.show()
+            
+    def plot_rules_evolution(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
+        
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+                
+        # Create and configure the plot
+        plt.figure(figsize=(19.20, 10.80))
+        plt.plot(self.rules, color='blue', linewidth=3)
+        plt.title('Evolution of the Rules for Training Phase')
+        plt.xlabel('Samples')
+        plt.ylabel('Number of Rules')
+        plt.grid(grid)
+        # Save
+        if save:
+            plt.savefig(f'RulesEvolution_SimpleTS.{format_save}', format=format_save, dpi=dpi)
+        # Display the plot
+        plt.show()
          
     def fit(self, X, y):
         
+        # Shape of X and y
+        X_shape = X.shape
+        y_shape = y.shape
+        
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y.shape) > 1 and y.shape[1] > 1:
+        if len(y_shape) > 1 and y_shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y.shape) > 1:
+        if len(y_shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X.shape[0] != y.shape[0]:
+        if X_shape[0] != y_shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
@@ -2980,71 +3142,114 @@ class Simpl_eTS(base):
             
         # Prepare the first input vector
         x = X[0,].reshape((1,-1)).T
+        
         # Compute xe
         xe = np.insert(x.T, 0, 1, axis=1).T
+        
         # Compute z
         z = np.concatenate((x.T, y[0].reshape(-1,1)), axis=1).T
+        
+        # Preallocate space for the outputs for better performance
+        self.y_pred_training = np.zeros((y_shape))
+        self.ResidualTrainingPhase = np.zeros((y_shape))
+        
+        # Initialize outputs
+        self.y_pred_training[0,] = y[0]
+        self.ResidualTrainingPhase[0,] = 0.
+        
         # Initialize the first rule
-        self.Initialize_First_Cluster(x, y[0], z)
+        self.NewRule(x, z, isFirst=True)
+        
         # Update lambda of the first rule
         self.Lambda(x)
+        
         # Update the consequent parameters of the fist rule
-        self.RLS(x, y[0], xe)
+        self.RLS(xe, y[0])
+        
         for k in range(1, X.shape[0]):
+            
+            # Update self k
+            self.k += 1
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
+            
             # Store the previously z
             z_prev = z
+            
             # Compute the new z
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
+            
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
+            
             # Compute the scatter for all rules
-            for i in self.parameters.index:
-                self.Update_Rule_Scatter(z, z_prev, i, k+1)
+            for i in range(len(self.parameters.index)):
+                # Update the scatter of all rules
+                self.UpdateRuleScatter(z, z_prev, i)
+                
             # Compute the data scatter
-            self.Update_Data_Scatter(z_prev, z, k+1)
+            self.UpdateDataScatter(z_prev, z)
+            
             # Find the rule with the minimum and maximum scatter
-            IdxMinScatter = self.parameters['Scatter'].astype('float64').idxmin()
-            IdxMaxScatter = self.parameters['Scatter'].astype('float64').idxmax()
-            # Compute minimum delta
-            Delta = self.MinimumDistance(z)
+            min_scatter, max_scatter = (np.inf, -np.inf)
+            for i in range(len(self.parameters_list)):
+                if self.parameters_list[i][4] < min_scatter:
+                    min_scatter = self.parameters_list[i][4]
+                if self.parameters_list[i][4] > max_scatter:
+                    max_scatter = self.parameters_list[i][4]
+            
+            # Compute delta (minimum distance)
+            delta = self.MinimumDistanceZ(z)
+            
             # Verifying the needing to creating a new rule
-            if (self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']) and Delta < 0.5 * self.r:
+            if ((self.DataScatter.item() < min_scatter) or (self.DataScatter.item() > max_scatter)) and delta < 0.5 * self.r:
                 # Update an existing rule
                 self.UpdateRule(x, z)
-            elif self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']:
+                
+            elif ((self.DataScatter.item() < min_scatter) or (self.DataScatter.item() > max_scatter)):
                 # Create a new rule
-                self.Initialize_Cluster(x, z, k+1, i)
-                #self.parameters = self.parameters.append(self.Initialize_Cluster(x, z, k+1, i), ignore_index = True)
-            elif Delta > 0.5 * self.r:
-                # Update num points
-                self.Update_Num_Points(z)
-            # Remove unecessary rules
-            if self.parameters.shape[0] > 1:
-                self.RemoveRule(k+1)
-            # Update consequent parameters
-            self.RLS(x, y[k], xe)
-            # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
+                self.NewRule(x, z)
             
+            elif delta > 0.5 * self.r:
+                # Update num observations in the closest rule
+                self.UpdateNumObservations(z)
+                
+            # Remove unecessary rules
+            if len(self.parameters_list) > 1:
+                # Look for rules to remove
+                self.RemoveRule()
+            
+            # Update Lambda
+            self.Lambda(x)
+            
+            # Update consequent parameters
+            self.RLS(xe, y[k])
+            
+            # Compute the number of rules at the current iteration
+            self.rules.append(len(self.parameters_list))
+                        
             # Compute and store the output
             Output = sum(
-                self.parameters.loc[row, 'Lambda'] * xe.T @ self.parameters.loc[row, 'Theta']
-                for row in self.parameters.index
+                self.parameters_list[row][8] * xe.T @ self.parameters_list[row][3]
+                for row in range(len(self.parameters_list))
             )
             
-            # Store the output in the array
-            self.y_pred_training = np.append(self.y_pred_training, Output)
-            # Compute the square residual of the current iteration
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
-        
+            # Store the results
+            self.y_pred_training[k,] = Output.item()
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase[k,] = residual ** 2
+            
+        # Save the last z
         self.z_last = z
-    
+        
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center_Z', 'Center', 'P', 'Theta', 'Scatter', 'TimeCreation', 'NumObservations', 'Tau', 'Lambda'])
+            
     def evolve(self, X, y):
         
         # Be sure that X is with a correct shape
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center_X'].shape[0])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
@@ -3087,48 +3292,73 @@ class Simpl_eTS(base):
         # Recover the last z
         z = self.z_last
         
-        for k in range(1, X.shape[0]):
+        for k in range(X.shape[0]):
+            
+            # Update self k
+            self.k += 1
+            
             # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
+            
             # Store the previously z
             z_prev = z
+            
             # Compute the new z
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
+            
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
+            
             # Compute the scatter for all rules
-            for i in self.parameters.index:
-                self.Update_Rule_Scatter(z, z_prev, i, k+1)
+            for i in range(len(self.parameters.index)):
+                # Update the scatter of all rules
+                self.UpdateRuleScatter(z, z_prev, i)
+                
             # Compute the data scatter
-            self.Update_Data_Scatter(z_prev, z, k+1)
+            self.UpdateDataScatter(z_prev, z)
+            
             # Find the rule with the minimum and maximum scatter
-            IdxMinScatter = self.parameters['Scatter'].astype('float64').idxmin()
-            IdxMaxScatter = self.parameters['Scatter'].astype('float64').idxmax()
-            # Compute minimum delta
-            Delta = self.MinimumDistance(z)
+            min_scatter, max_scatter = (np.inf, -np.inf)
+            for i in range(len(self.parameters_list)):
+                if self.parameters_list[i][4] < min_scatter:
+                    min_scatter = self.parameters_list[i][4]
+                if self.parameters_list[i][4] > max_scatter:
+                    max_scatter = self.parameters_list[i][4]
+            
+            # Compute delta (minimum distance)
+            delta = self.MinimumDistanceZ(z)
+            
             # Verifying the needing to creating a new rule
-            if (self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']) and Delta < 0.5 * self.r:
+            if ((self.DataScatter.item() < min_scatter) or (self.DataScatter.item() > max_scatter)) and delta < 0.5 * self.r:
                 # Update an existing rule
                 self.UpdateRule(x, z)
-            elif self.DataScatter.item() < self.parameters.loc[IdxMinScatter, 'Scatter'] or self.DataScatter.item() > self.parameters.loc[IdxMaxScatter, 'Scatter']:
+                
+            elif ((self.DataScatter.item() < min_scatter) or (self.DataScatter.item() > max_scatter)):
                 # Create a new rule
-                self.Initialize_Cluster(x, z, k+1, i)
-                #self.parameters = self.parameters.append(self.Initialize_Cluster(x, z, k+1, i), ignore_index = True)
-            elif Delta > 0.5 * self.r:
-                # Update num points
-                self.Update_Num_Points(z)
-            # Remove unecessary rules
-            if self.parameters.shape[0] > 1:
-                self.RemoveRule(k+1)
-            # Update consequent parameters
-            self.RLS(x, y[k], xe)
-            # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
+                self.NewRule(x, z)
             
+            elif delta > 0.5 * self.r:
+                # Update num observations in the closest rule
+                self.UpdateNumObservations(z)
+                
+            # Remove unecessary rules
+            if len(self.parameters_list) > 1:
+                # Look for rules to remove
+                self.RemoveRule()
+            
+            # Update Lambda
+            self.Lambda(x)
+            
+            # Update consequent parameters
+            self.RLS(xe, y[k])
+            
+            # Compute the number of rules at the current iteration
+            self.rules.append(len(self.parameters_list))
+                        
             # Compute and store the output
             Output = sum(
-                self.parameters.loc[row, 'Lambda'] * xe.T @ self.parameters.loc[row, 'Theta']
-                for row in self.parameters.index
+                self.parameters_list[row][8] * xe.T @ self.parameters_list[row][3]
+                for row in range(len(self.parameters_list))
             )
             
             # Store the output in the array
@@ -3136,7 +3366,12 @@ class Simpl_eTS(base):
             # Compute the square residual of the current iteration
             self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
         
+        # Save the last z
         self.z_last = z
+        
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center_Z', 'Center', 'P', 'Theta', 'Scatter', 'TimeCreation', 'NumObservations', 'Tau', 'Lambda'])
+            
             
     def predict(self, X):
         
@@ -3150,121 +3385,144 @@ class Simpl_eTS(base):
                 "X contains incompatible values."
                 " Check X for non-numeric or infinity values"
             )
-            
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center_X'].shape[0])
+        
+        # Reshape X
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
+        
+        # Preallocate space for the outputs for better performance
+        self.y_pred_test = np.zeros((X.shape[0]))
         
         for k in range(X.shape[0]):
+            
+            # Prepare the k-th input vector
             x = X[k,].reshape((1,-1)).T
+            
+            # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
+            
             # Update lambda of all rules
             self.Lambda(x)
             
             # Compute and store the output
             Output = sum(
-                self.parameters.loc[row, 'Lambda'] * xe.T @ self.parameters.loc[row, 'Theta']
-                for row in self.parameters.index
+                self.parameters_list[row][8] * xe.T @ self.parameters_list[row][3]
+                for row in range(len(self.parameters_list))
             )
             
-            # Store the output in the array
-            self.y_pred_test = np.append(self.y_pred_test, Output)
-        return self.y_pred_test[-X.shape[0]:]
+            # Store the results
+            self.y_pred_test[k,] = Output.item()
+            
+        return self.y_pred_test
         
-    def Initialize_First_Cluster(self, x, y, z):
-        n_features = x.shape[0]
-        cluster_data = {
-            "Center_Z": [z],
-            "Center_X": [x],
-            "C": [self.omega * np.eye(n_features + 1)],
-            "Theta": [np.zeros((n_features + 1, 1))],
-            "Scatter": [self.InitialScatter],
-            "TimeCreation": [1.],
-            "NumPoints": [1.]
-        }
-        self.parameters = pd.DataFrame(cluster_data)
-        self.y_pred_training = np.append(self.y_pred_training, y)
-        self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, 0)  # Residual (y - y)^2 is always 0 for the first cluster
+    def NewRule(self, x, z, isFirst = False):
+        
+        if isFirst:
+            
+            # List of parameters
+            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), self.InitialScatter, self.k, 1., 1., 1.])
+        
+        else:
+            
+            Theta = np.zeros((x.shape[0] + 1, 1))
+            # Update the lambda value for all rules
+            self.Lambda(x)
+            for row in range(len(self.parameters_list)):
+                Theta += self.parameters_list[row][8] * self.parameters_list[row][3]
+            
+            # List of parameters
+            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.DataScatter.item(), self.k, 1., 1., 1.])
     
-    def Initialize_Cluster(self, x, z, k, i):
-        Theta = np.zeros((x.shape[0] + 1, 1))
-        # Update the lambda value for all rules
-        self.Lambda(x)
-        for row in self.parameters.index:
-            Theta = Theta + self.parameters.loc[row, 'Lambda'] * self.parameters.loc[row, 'Theta']
-        NewRow = pd.DataFrame([[z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.DataScatter.item(), k, 1.]], columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Scatter', 'TimeCreation', 'NumPoints'])
-        self.parameters = pd.concat([self.parameters, NewRow], ignore_index=True)
-      
-    def Update_Rule_Scatter(self, z, z_prev, i, k):
-        scatter = self.parameters.at[i, 'Scatter']
-        self.parameters.at[i, 'Scatter'] = scatter * ((k - 2) / (k - 1)) + np.sum((z - z_prev)**2)
+    
+    def UpdateRuleScatter(self, z, z_prev, i):
+        scatter = self.parameters_list[i][4]
+        self.parameters_list[i][4] = scatter * ((self.k - 2) / (self.k - 1)) + np.sum((z - z_prev)**2)
         
     def Distance(self, p1, p2):
         return np.linalg.norm(p1 - p2)
     
-    def Update_Data_Scatter(self, z_prev, z, k):
+    def UpdateDataScatter(self, z_prev, z):
         self.Beta += z_prev
         self.Theta = self.Sigma + sum(z_prev**2)
-        self.DataScatter = (1 / ((k - 1) * (z.shape[0]))) * ((k - 1) * sum(z**2) - 2 * sum(z * self.Beta) + self.Theta)
+        self.DataScatter = (1 / ((self.k - 1) * (z.shape[0]))) * ((self.k - 1) * sum(z**2) - 2 * sum(z * self.Beta) + self.Theta)
         
-    def MinimumDistance(self, z):
-        distances = self.parameters['Center_Z'].apply(lambda Center: np.linalg.norm(Center - z))
-        return distances.min()
+    def MinimumDistanceZ(self, z):
+        # Find the minimum distance
+        min_dist, min_dist_idx = (np.inf, 0)
+        for i in range(len(self.parameters_list)):
+            distance = np.linalg.norm(self.parameters_list[i][0] - z)
+            if distance < min_dist:
+                min_dist, min_dist_idx = (distance, i)
+        return min_dist_idx
+    
+    def UpdateNumObservations(self, z):
+        # Find the closest Center_Z
+        i = self.MinimumDistanceZ(z)
+        # Update the closest rule
+        self.parameters_list[i][6] += 1
                               
     def UpdateRule(self, x, z):
-        distances = self.parameters['Center_Z'].apply(lambda Center: np.linalg.norm(Center - z))
-        index = distances.idxmin()
-        self.parameters.at[index, 'NumPoints'] += 1
-        self.parameters.at[index, 'Center_Z'] = z
-        self.parameters.at[index, 'Center_X'] = x
+        # Find the closest Center_Z
+        i = self.MinimumDistanceZ(z)
+        # Update the closest rule
+        self.parameters_list[i][6] += 1
+        self.parameters_list[i][0] = z
+        self.parameters_list[i][1] = x
             
-    def Update_Num_Points(self, z):
-        distances = self.parameters['Center_Z'].apply(lambda Center: np.linalg.norm(Center - z))
-        index = distances.idxmin()
-        self.parameters.at[index, 'NumPoints'] += 1
+    def CauchyMF(self, v1, v2):
         
+        # Compute cauchy membership functions
+        v1_shape = v1.shape
+        denominator = np.zeros([v1_shape[0], 1])
+        for j in range(v1_shape[0]):
+            denominator[j,0] = ( 1 + ( ( 2 * ( v1[j,0] - v2[j,0] ) ) / self.r )**2 )
+            
+        return 1 / denominator.prod()
+    
+    def Tau(self, x):
+        # Compute tau
+        for row in range(len(self.parameters_list)):
+            tau = self.CauchyMF(x, self.parameters_list[row][1])
+            # Evoid tau with values zero
+            if abs(tau) < (10 ** -100):
+                tau = (10 ** -100)
+            self.parameters_list[row][7] = tau
+            
     def Lambda(self, x):
-        self.parameters['Tau'] = self.parameters['Center_X'].apply(lambda Center: self.mu(Center, x))
-        total_tau = self.parameters['Tau'].sum()
-        self.parameters['Lambda'] = self.parameters['Tau'] / total_tau
-    
-    def mu(self, Center_X, x):
-        squared_diff = (2 * (x - Center_X) / self.r)**2
-        tau = np.prod(1 + squared_diff)
-        return 1 / tau
-    
-    def RemoveRule(self, k):
+        
+        # Update the values of Tau
+        self.Tau(x)
+        
+        # Compute the sum of tau
+        tau_sum = 0
+        for i in range(len(self.parameters_list)):
+            tau_sum += self.parameters_list[i][7]
+        
+        # Compute lambda
+        for row in range(len(self.parameters_list)):
+            self.parameters_list[row][8] = self.parameters_list[row][7] / tau_sum
+            
+    def RemoveRule(self):
+        
+        # Compute the total number of observations
         N_total = 0
-        for i in self.parameters.index:
-            N_total = N_total + self.parameters.loc[i, 'NumPoints']
-        remove = []
-        for i in self.parameters.index:
-            if self.parameters.loc[i, 'NumPoints'] / N_total < self.ThresholdRemoveRules:
-                remove.append(i)
-        if len(remove) > 0 and len(remove) < self.parameters.shape[0]:    
-            self.parameters = self.parameters.drop(remove)
+        for row in range(len(self.parameters_list)):
+            N_total += self.parameters_list[row][6]
+        
+        # Find rules to remove
+        remove = [row for row in range(len(self.parameters_list)) if ((self.parameters_list[row][6] / N_total) < self.epsilon)]
+        
+        if remove:
             
-    def RLS(self, x, y, xe):
-        self.Lambda(x)
-        for row in self.parameters.index:
+            if len(remove) < len(self.parameters_list):
             
-            # Extract frequently used values to avoid repeated lookups
-            lambda_val = self.parameters.loc[row, 'Lambda']
-            C = self.parameters.loc[row, 'C']
-            Theta = self.parameters.loc[row, 'Theta']
+                # Update the parameters_list with the valid rules
+                self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
             
-            # Compute intermediate values once
-            xe_T_C = xe.T @ C
-            denominator = 1 + lambda_val * xe_T_C @ xe
             
-            # Update the matrix C
-            C -= (lambda_val * C @ xe @ xe_T_C) / denominator
-            
-            # Update Theta
-            residual = y - xe.T @ Theta
-            Theta += (C @ xe * lambda_val * residual)
-            
-            # Save updated values back into the DataFrame
-            self.parameters.at[row, 'C'] = C
-            self.parameters.at[row, 'Theta'] = Theta
+    def RLS(self, xe, y):
+        for i in range(len(self.parameters_list)):
+            self.parameters_list[i][2] -= ((self.parameters_list[i][8] * self.parameters_list[i][2] @ xe @ xe.T @ self.parameters_list[i][2]) / (1 + self.parameters_list[i][8] * xe.T @ self.parameters_list[i][2] @ xe))
+            self.parameters_list[i][3] += self.parameters_list[i][2] @ xe * self.parameters_list[i][8] * (y - xe.T @ self.parameters_list[i][3])
 
 
 class eTS(base):
@@ -3282,6 +3540,7 @@ class eTS(base):
         # Hyperparameters
         self.omega = omega
         self.r = r
+        self.alpha = 4/(self.r**2)
         
         # Parameters
         self.parameters = pd.DataFrame(columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Potential', 'TimeCreation', 'NumPoints', 'Tau', 'Lambda'])
@@ -3292,16 +3551,7 @@ class eTS(base):
         self.Beta = 0.
         self.Sigma = 0.
         self.z_last = None
-        # Store k for the evolving phase
-        self.k = 1
-        # Evolution of the model rules
-        self.rules = []
-        # Computing the output in the training phase
-        self.y_pred_training = np.array([])
-        # Computing the residual square in the ttraining phase
-        self.ResidualTrainingPhase = np.array([])
-        # Computing the output in the testing phase
-        self.y_pred_test = np.array([])
+        
     
     def get_params(self, deep=True):
         return {
@@ -3316,25 +3566,127 @@ class eTS(base):
     
     def is_numeric_and_finite(self, array):
         return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
+    
+    def show_rules(self):
+        rules = []
+        for i in self.parameters.index:
+            rule = f"Rule {i}"
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                rule = f'{rule} - {self.parameters.loc[i,"Center"][j].item():.2f} ({self.r:.2f})'
+            print(rule)
+            rules.append(rule)
+        
+        return rules
+    
+    def plot_rules(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=13)
+        plt.rc('axes', titlesize=15)
+        # plt.figure(figsize=(19.20, 10.80))
+    
+        # Determine the number of rules (rows) and attributes per rule
+        num_rules = len(self.parameters.index)
+        num_attributes = self.parameters.loc[self.parameters.index[0], "Center"].shape[0]
+    
+        # Create a figure with subplots (one per rule)
+        fig, axes = plt.subplots(num_rules, 1, figsize=(8, num_rules * 4), squeeze=False, sharey=True)
+    
+        # Iterate through rules
+        for i, rule_idx in enumerate(self.parameters.index):
+            ax = axes[i, 0]  # Select the subplot for the rule
+            
+            # Iterate through all attributes and plot them in the same subplot
+            for j in range(num_attributes):
+                center = self.parameters.loc[rule_idx, "Center"][j]
+                x_vals = np.linspace(center - 3 * self.r, center + 3 * self.r, num_points)
+                y_vals = np.exp(-((x_vals - center) ** 2) / (2 * self.r ** 2))
+                
+                ax.plot(x_vals, y_vals, linewidth=3, label=f'Attr {j}: μ={center.item():.2f}, σ={self.r:.2f}')
+            
+            # Subplot settings
+            ax.set_title(f'Rule {rule_idx}')
+            ax.legend(loc="lower center", ncol=2)
+            ax.grid(False)
+    
+        # Set a single y-label for the entire figure
+        fig.supylabel("Membership")
+        fig.supxlabel("Values")
+    
+        # Adjust layout for better spacing
+        plt.tight_layout()
+        # Save
+        if save:
+            plt.savefig(f'Rules_eTS.{format_save}', format=format_save, dpi=dpi)
+        plt.show()
+    
+    def plot_gaussians(self, num_points=100, grid=False, save=False, format_save = 'eps', dpi = 1200):
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+        
+        # Iterate through rules and attributes
+        for i in self.parameters.index:
+            for j in range(self.parameters.loc[i,"Center"].shape[0]):
+                
+                # Generate x values for smooth curve
+                x_vals = np.linspace(self.parameters.loc[i,"Center"][j] - 3*self.r, self.parameters.loc[i,"Center"][j] + 3*self.r, num_points)
+                y_vals = np.exp(-((x_vals - self.parameters.loc[i,"Center"][j])**2) / (2 * self.r**2))
+                
+                # Create and configure the plot
+                plt.figure(figsize=(19.20, 10.80))
+                plt.plot(x_vals, y_vals, color='blue', linewidth=3, label=f'Gaussian (μ={self.parameters.loc[i,"Center"][j].item():.2f}, σ={self.r:.2f})')
+                plt.title(f'Rule {i} - Attribute {j}')
+                plt.xlabel('Values')
+                plt.ylabel('Membership')
+                plt.legend()
+                plt.grid(grid)
+                # Save
+                if save:
+                    plt.savefig(f'Gaussians_Rule{i}_Att{j}_eTS.{format_save}', format=format_save, dpi=dpi)
+                # Display the plot
+                plt.show()
+            
+    def plot_rules_evolution(self, grid=False, save=False, format_save = 'eps', dpi = 1200):
+        
+        # Set plot-wide configurations only once
+        plt.rc('font', size=30)
+        plt.rc('axes', titlesize=30)
+                
+        # Create and configure the plot
+        plt.figure(figsize=(19.20, 10.80))
+        plt.plot(self.rules, color='blue', linewidth=3)
+        plt.title('Evolution of the Rules for Training Phase')
+        plt.xlabel('Samples')
+        plt.ylabel('Number of Rules')
+        plt.grid(grid)
+        # Save
+        if save:
+            plt.savefig(f'RulesEvolution_eTS.{format_save}', format=format_save, dpi=dpi)
+        # Display the plot
+        plt.show()
          
     def fit(self, X, y):
         
+        # Shape of X and y
+        X_shape = X.shape
+        y_shape = y.shape
+        
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y.shape) > 1 and y.shape[1] > 1:
+        if len(y_shape) > 1 and y_shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y.shape) > 1:
+        if len(y_shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X.shape[0] != y.shape[0]:
+        if X_shape[0] != y_shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
@@ -3352,76 +3704,110 @@ class eTS(base):
                 "y contains incompatible values."
                 " Check y for non-numeric or infinity values"
             )
-        
-        # Number of samples
-        n_samples = X.shape[0]
-        self.rules = []
-        
+            
         # Prepare the first input vector
         x = X[0,].reshape((1,-1)).T
+        
         # Compute xe
         xe = np.insert(x.T, 0, 1, axis=1).T
+        
         # Compute z
         z = np.concatenate((x.T, y[0].reshape(-1,1)), axis=1).T
         
-        # Initialize the first rule
-        self.Initialize_First_Cluster(x, y[0], z)
-        self.Lambda(x)  # Update lambda of the first rule
-        self.RLS(x, y[0], xe)  # Update the consequent parameters of the first rule
+        # Preallocate space for the outputs for better performance
+        self.y_pred_training = np.zeros((y_shape))
+        self.ResidualTrainingPhase = np.zeros((y_shape))
         
-        for k in range(1, n_samples):
+        # Initialize outputs
+        self.y_pred_training[0,] = y[0]
+        self.ResidualTrainingPhase[0,] = 0.
+        
+        # Initialize the first rule
+        self.NewRule(x, z, isFirst=True)
+        
+        # Update lambda of the first rule
+        self.Lambda(x)
+        
+        # Update the consequent parameters of the fist rule
+        self.RLS(xe, y[0])
+        
+        for k in range(1, X.shape[0]):
+            
             # Update self k
             self.k += 1
+            
             # Prepare the k-th input vector
-            x = X[k, :].reshape(-1, 1)
+            x = X[k,].reshape((1,-1)).T
             
             # Store the previously z
             z_prev = z
+            
             # Compute the new z
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
+            
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
             
-            # Compute the potential for all rules
-            for i in self.parameters.index:
+            # Compute the scatter for all rules
+            for i in range(len(self.parameters.index)):
+                # Update the potential of all rules
                 self.UpdateRulePotential(z, i)
                 
             # Compute the data potential
             self.UpdateDataPotential(z_prev, z)
+            
             # Find the rule with the maximum potential
-            IdxMaxPotential = self.parameters['Potential'].astype('float64').idxmax()
+            max_potential = -np.inf
+            for i in range(len(self.parameters_list)):
+                if self.parameters_list[i][4] > max_potential:
+                    max_potential = self.parameters_list[i][4]
             
-            # Compute minimum delta
-            Delta = self.MinimumDistance(z)
-            DataPotentialRatio = self.DataPotential.item() / self.parameters.loc[IdxMaxPotential, 'Potential']
+            # Compute delta (minimum distance)
+            delta = self.MinimumDistanceZ(z)
             
-            if self.DataPotential.item() > self.parameters.loc[IdxMaxPotential, 'Potential'] and DataPotentialRatio - Delta / self.r >= 1.:
-                self.UpdateRule(x, z)  # Update an existing rule
-            elif self.DataPotential > self.parameters.loc[IdxMaxPotential, 'Potential']:
-                self.Initialize_Cluster(x, z, i)  # Create a new rule
+            # Compute the ratio of the potential of the data
+            potential_ratio = self.DataPotential.item() / max_potential
+            
+            # Check wheather it is necessary to create or update an existing rule
+            if (self.DataPotential.item() > max_potential) and ((potential_ratio - (delta / self.r)) >= 1.):
+                # Update the closest rule
+                self.UpdateRule(x, z)
                 
-            # Update consequent parameters
-            self.RLS(x, y[k], xe)
-            # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
+            elif (self.DataPotential > max_potential):
+                # Create a new rule
+                self.NewRule(x, z)  # Create a new rule
             
+            # Update Lambda
+            self.Lambda(x)
+            
+            # Update consequent parameters
+            self.RLS(xe, y[k])
+            
+            # Compute the number of rules at the current iteration
+            self.rules.append(len(self.parameters_list))
+                        
             # Compute and store the output
             Output = sum(
-                self.parameters.loc[row, 'Lambda'] * xe.T @ self.parameters.loc[row, 'Theta']
-                for row in self.parameters.index
+                self.parameters_list[row][8] * xe.T @ self.parameters_list[row][3]
+                for row in range(len(self.parameters_list))
             )
             
-            # Store the output in the array
-            self.y_pred_training = np.append(self.y_pred_training, Output)
-            # Compute the square residual of the current iteration
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
-        
+            # Store the results
+            self.y_pred_training[k,] = Output.item()
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase[k,] = residual ** 2
+            
+        # Save the last z
         self.z_last = z
+        
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center_Z', 'Center', 'P', 'Theta', 'Potential', 'TimeCreation', 'NumObservations', 'Tau', 'Lambda'])
+            
     
     def evolve(self, X, y):
         
         # Be sure that X is with a correct shape
-        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center_X'].shape[0])
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
@@ -3466,52 +3852,75 @@ class eTS(base):
         
         for k in range(X.shape[0]):
             
-            # Update k
+            # Update self k
             self.k += 1
+            
             # Prepare the k-th input vector
-            x = X[k, :].reshape(-1, 1)
+            x = X[k,].reshape((1,-1)).T
             
             # Store the previously z
             z_prev = z
+            
             # Compute the new z
             z = np.concatenate((x.T, y[k].reshape(-1,1)), axis=1).T
+            
             # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
             
-            # Compute the potential for all rules
-            for i in self.parameters.index:
+            # Compute the scatter for all rules
+            for i in range(len(self.parameters.index)):
+                # Update the potential of all rules
                 self.UpdateRulePotential(z, i)
                 
             # Compute the data potential
             self.UpdateDataPotential(z_prev, z)
+            
             # Find the rule with the maximum potential
-            IdxMaxPotential = self.parameters['Potential'].astype('float64').idxmax()
-            # Compute minimum delta
-            Delta = self.MinimumDistance(z)
-            DataPotentialRatio = self.DataPotential.item() / self.parameters.loc[IdxMaxPotential, 'Potential']
+            max_potential = -np.inf
+            for i in range(len(self.parameters_list)):
+                if self.parameters_list[i][4] > max_potential:
+                    max_potential = self.parameters_list[i][4]
             
-            if self.DataPotential.item() > self.parameters.loc[IdxMaxPotential, 'Potential'] and DataPotentialRatio - Delta / self.r >= 1.:
-                self.UpdateRule(x, z)  # Update an existing rule
-            elif self.DataPotential > self.parameters.loc[IdxMaxPotential, 'Potential']:
-                self.Initialize_Cluster(x, z, i)  # Create a new rule
+            # Compute delta (minimum distance)
+            delta = self.MinimumDistanceZ(z)
+            
+            # Compute the ratio of the potential of the data
+            potential_ratio = self.DataPotential.item() / max_potential
+            
+            # Check wheather it is necessary to create or update an existing rule
+            if (self.DataPotential.item() > max_potential) and ((potential_ratio - (delta / self.r)) >= 1.):
+                # Update the closest rule
+                self.UpdateRule(x, z)
                 
-            # Update consequent parameters
-            self.RLS(x, y[k], xe)
-            # Compute the number of rules at the current iteration
-            self.rules.append(self.parameters.shape[0])
+            elif (self.DataPotential > max_potential):
+                # Create a new rule
+                self.NewRule(x, z)  # Create a new rule
             
+            # Update Lambda
+            self.Lambda(x)
+            
+            # Update consequent parameters
+            self.RLS(xe, y[k])
+            
+            # Compute the number of rules at the current iteration
+            self.rules.append(len(self.parameters_list))
+                        
             # Compute and store the output
             Output = sum(
-                self.parameters.loc[row, 'Lambda'] * xe.T @ self.parameters.loc[row, 'Theta']
-                for row in self.parameters.index
+                self.parameters_list[row][8] * xe.T @ self.parameters_list[row][3]
+                for row in range(len(self.parameters_list))
             )
             
-            # Store the output in the array
+            # Store the results
             self.y_pred_training = np.append(self.y_pred_training, Output)
-            # Compute the square residual of the current iteration
-            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase,(Output - y[k])**2)
-    
+            residual = abs(Output - y[k])
+            self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, residual**2)
+            
+        # Save the last z
         self.z_last = z
+        
+        # Save the rules to a dataframe
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center_Z', 'Center', 'P', 'Theta', 'Potential', 'TimeCreation', 'NumObservations', 'Tau', 'Lambda'])
             
     def predict(self, X):
         
@@ -3525,134 +3934,120 @@ class eTS(base):
                 "X contains incompatible values."
                 " Check X for non-numeric or infinity values"
             )
-            
-        # Reshape X to match the dimension of the cluster Centers
-        expected_shape = self.parameters.loc[self.parameters.index[0], 'Center_X'].shape[0]
-        if X.shape[1] != expected_shape:
-            X = X.reshape(-1, expected_shape)
         
-        # Preallocate output array for efficiency
-        y_pred_test = np.zeros(X.shape[0])
+        # Reshape X
+        X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
+        
+        # Preallocate space for the outputs for better performance
+        self.y_pred_test = np.zeros((X.shape[0]))
 
         for k in range(X.shape[0]):
-            x = X[k, :].reshape(-1, 1)  # Prepare the input vector
+            
+            # Prepare the k-th input vector
+            x = X[k,].reshape((1,-1)).T
+            
+            # Compute xe
             xe = np.insert(x.T, 0, 1, axis=1).T
             
             # Update lambda of all rules
             self.Lambda(x)
             
-            # Verify if lambda is nan
-            if np.isnan(self.parameters['Lambda']).any():
-                self.parameters['Lambda'] = 1 / self.parameters.shape[0]
-                
-            # Compute the output as a dot product
+            # Compute and store the output
             Output = sum(
-                self.parameters.loc[row, 'Lambda'] * xe.T @ self.parameters.loc[row, 'Theta']
-                for row in self.parameters.index
+                self.parameters_list[row][8] * xe.T @ self.parameters_list[row][3]
+                for row in range(len(self.parameters_list))
             )
-            
-            # Store the output in the array
-            y_pred_test[k] = Output
         
-        # Update the class variable and return the recent outputs
-        self.y_pred_test = np.append(self.y_pred_test, y_pred_test)
+            # Store the results
+            self.y_pred_test[k,] = Output.item()
             
-        return y_pred_test
+        return self.y_pred_test
+   
+    def NewRule(self, x, z, isFirst = False):
         
-    def Initialize_First_Cluster(self, x, y, z):
-        self.parameters = pd.DataFrame([{
-            'Center_Z': z,
-            'Center_X': x,
-            'C': self.omega * np.eye(x.shape[0] + 1),
-            'Theta': np.zeros((x.shape[0] + 1, 1)),
-            'Potential': self.InitialPotential,
-            'TimeCreation': 1.0,
-            'NumPoints': 1
-        }])
-        self.y_pred_training = np.append(self.y_pred_training, y)
-        self.ResidualTrainingPhase = np.append(self.ResidualTrainingPhase, 0)
+        if isFirst:
+            
+            # List of parameters
+            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), self.InitialPotential, self.k, 1., 1., 1.])
+        
+        else:
+            
+            Theta = np.zeros((x.shape[0] + 1, 1))
+            # Update the lambda value for all rules
+            self.Lambda(x)
+            for row in range(len(self.parameters_list)):
+                Theta += self.parameters_list[row][8] * self.parameters_list[row][3]
+            
+            # List of parameters
+            self.parameters_list.append([z, x, self.omega * np.eye(x.shape[0] + 1), Theta, self.InitialPotential, self.k, 1., 1., 1.])
     
-    def Initialize_Cluster(self, x, z, i):
-        Theta = np.sum(
-            [self.parameters.loc[row, 'Lambda'] * self.parameters.loc[row, 'Theta']
-             for row in self.parameters.index], axis=0
-        )
-        new_row = {
-            'Center_Z': z,
-            'Center_X': x,
-            'C': self.omega * np.eye(x.shape[0] + 1),
-            'Theta': Theta,
-            'Potential': self.InitialPotential,
-            'TimeCreation': self.k,
-            'NumPoints': 1
-        }
-        self.parameters = pd.concat([self.parameters, pd.DataFrame([new_row])], ignore_index=True)
-
-    def UpdateRulePotential(self, z, i):
-        dist = self.Distance(z.T, self.parameters.loc[i, 'Center_Z'].T)
-        numerator = (self.k - 1) * self.parameters.loc[i, 'Potential']
-        denominator = (self.k - 2 + self.parameters.loc[i, 'Potential'] +
-                       self.parameters.loc[i, 'Potential'] * dist**2)
-        self.parameters.at[i, 'Potential'] = numerator / denominator
         
     def Distance(self, p1, p2):
         distance = np.linalg.norm(p1 - p2)
         return distance
     
+    def UpdateRulePotential(self, z, i):
+        dist = self.Distance(z.T, self.parameters_list[i][0].T)
+        numerator = (self.k - 1) * self.parameters_list[i][4]
+        denominator = (self.k - 2 + self.parameters_list[i][4] +
+                       self.parameters_list[i][4] * dist**2)
+        self.parameters_list[i][4] = numerator / denominator
+           
     def UpdateDataPotential(self, z_prev, z):
         self.Beta = self.Beta + z_prev
         self.Sigma = self.Sigma + sum(z_prev**2)
         varTheta = sum(z**2)
         upsilon = sum(z*self.Beta)
         self.DataPotential = ((self.k - 1)) / ((self.k - 1) * (varTheta + 1) + self.Sigma - 2*upsilon)
-        
-    def MinimumDistance(self, z):
-        distances = np.linalg.norm(np.stack(self.parameters['Center_Z']) - z, axis=1)
-        return np.min(distances)
-                           
+       
+    def MinimumDistanceZ(self, z):
+        # Find the minimum distance
+        min_dist, min_dist_idx = (np.inf, 0)
+        for i in range(len(self.parameters_list)):
+            distance = np.linalg.norm(self.parameters_list[i][0] - z)
+            if distance < min_dist:
+                min_dist, min_dist_idx = (distance, i)
+        return min_dist_idx
+              
     def UpdateRule(self, x, z):
-        distances = np.linalg.norm(np.stack(self.parameters['Center_Z']) - z, axis=1)
-        index = np.argmin(distances)
-        self.parameters.at[index, 'NumPoints'] += 1
-        self.parameters.at[index, 'Center_Z'] = z
-        self.parameters.at[index, 'Center_X'] = x
-        self.parameters.at[index, 'Potential'] = self.DataPotential
+        # Find the closest Center_Z
+        i = self.MinimumDistanceZ(z)
+        # Update the closest rule
+        self.parameters_list[i][6] += 1
+        self.parameters_list[i][0] = z
+        self.parameters_list[i][1] = x
+        self.parameters_list[i][4] = self.DataPotential
+                
+    def GaussianMF(self, v1, v2):
+        mf = np.zeros((v1.shape))
+        for j in range(v1.shape[0]):
+            mf[j,0] = math.exp( - self.alpha * ( v1[j,0] - v2[j,0] ) ** 2 )
+        return mf.prod()
+    
+    def Tau(self, x):
+        # Compute tau
+        for row in range(len(self.parameters_list)):
+            tau = self.GaussianMF(x, self.parameters_list[row][1])
+            # Evoid tau with values zero
+            if abs(tau) < (10 ** -100):
+                tau = (10 ** -100)
+            self.parameters_list[row][7] = tau
             
     def Lambda(self, x):
-        self.parameters['Tau'] = self.parameters['Center_X'].apply(
-            lambda Center_x: self.mu(Center_x, x)
-        )
-        total_tau = np.sum(self.parameters['Tau'])
-        if total_tau == 0:
-            self.parameters['Lambda'] = 1.0 / len(self.parameters)
-        else:
-            self.parameters['Lambda'] = self.parameters['Tau'] / total_tau
-    
-    def mu(self, Center_X, x):
-        distances = np.linalg.norm(Center_X - x, axis=0)**2
-        tau = np.exp(-4 / self.r**2 * distances).prod()
-        return tau
-    
-    def RLS(self, x, y, xe):
-        self.Lambda(x)
-        for row in self.parameters.index:
-            
-            # Extract frequently used values to avoid repeated lookups
-            lambda_val = self.parameters.loc[row, 'Lambda']
-            C = self.parameters.loc[row, 'C']
-            Theta = self.parameters.loc[row, 'Theta']
-            
-            # Compute intermediate values once
-            xe_T_C = xe.T @ C
-            denominator = 1 + lambda_val * xe_T_C @ xe
-            
-            # Update the matrix C
-            C -= (lambda_val * C @ xe @ xe_T_C) / denominator
-            
-            # Update Theta
-            residual = y - xe.T @ Theta
-            Theta += (C @ xe * lambda_val * residual)
-            
-            # Save updated values back into the DataFrame
-            self.parameters.at[row, 'C'] = C
-            self.parameters.at[row, 'Theta'] = Theta
+        
+        # Update the values of Tau
+        self.Tau(x)
+        
+        # Compute the sum of tau
+        tau_sum = 0
+        for i in range(len(self.parameters_list)):
+            tau_sum += self.parameters_list[i][7]
+        
+        # Compute lambda
+        for row in range(len(self.parameters_list)):
+            self.parameters_list[row][8] = self.parameters_list[row][7] / tau_sum
+      
+    def RLS(self, xe, y):
+        for i in range(len(self.parameters_list)):
+            self.parameters_list[i][2] -= ((self.parameters_list[i][8] * self.parameters_list[i][2] @ xe @ xe.T @ self.parameters_list[i][2]) / (1 + self.parameters_list[i][8] * xe.T @ self.parameters_list[i][2] @ xe))
+            self.parameters_list[i][3] += self.parameters_list[i][2] @ xe * self.parameters_list[i][8] * (y - xe.T @ self.parameters_list[i][3])
