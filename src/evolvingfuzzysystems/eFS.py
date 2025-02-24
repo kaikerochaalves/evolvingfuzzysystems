@@ -926,7 +926,7 @@ class ePL_plus(base):
         self.Lambda(x)
         
         # Update the consequent parameters of the fist rule
-        self.RLS(x, y[0], xe)
+        self.wRLS(x, y[0], xe)
         
         for k in range(1, X.shape[0]):
             
@@ -973,7 +973,7 @@ class ePL_plus(base):
             self.Lambda(x)
             
             # Update the consequent parameters of the fist rule
-            self.RLS(x, y[k], xe)
+            self.wRLS(x, y[k], xe)
             
             # Utility Measure
             if len(self.parameters_list) > 1:
@@ -1078,7 +1078,7 @@ class ePL_plus(base):
             self.Lambda(x)
             
             # Update the consequent parameters of the fist rule
-            self.RLS(x, y[k], xe)
+            self.wRLS(x, y[k], xe)
             
             # Utility Measure
             if len(self.parameters_list) > 1:
@@ -1254,7 +1254,7 @@ class ePL_plus(base):
             
             self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
 
-    def RLS(self, x, y, xe):
+    def wRLS(self, x, y, xe):
         for row in range(len(self.parameters_list)):
             self.parameters_list[row][1] -= (( self.parameters_list[row][7] * self.parameters_list[row][1] @ xe @ xe.T @ self.parameters_list[row][1])/(1 + self.parameters_list[row][7] * xe.T @ self.parameters_list[row][1] @ xe))
             self.parameters_list[row][2] += (self.parameters_list[row][1] @ xe * self.parameters_list[row][7] * (y - xe.T @ self.parameters_list[row][2]))
@@ -1262,7 +1262,7 @@ class ePL_plus(base):
             
 class eMG(base):
     
-    def __init__(self, alpha = 0.01, lambda1 = 0.1, w = 10, sigma = 0.05, omega = 10^2, maximum_rules = 200):
+    def __init__(self, alpha = 0.01, lambda1 = 0.1, w = 10, sigma = 0.05, omega = 10^2):
         
         # Call __init__ of the base class
         super().__init__()
@@ -1284,7 +1284,6 @@ class eMG(base):
         self.w = w
         self.sigma = sigma
         self.omega = omega
-        self.maximum_rules = maximum_rules
         
         # # Model's parameters
         # self.parameters = pd.DataFrame(columns = ['Center', 'ArousalIndex', 'CompatibilityMeasure', 'NumObservations', 'Sigma', 'o', 'Theta', 'Q', 'LocalOutput'])
@@ -2091,7 +2090,7 @@ class ePL(base):
         self.NewRule(x, y[0], True)
                 
         # Update the consequent parameters of the fist rule
-        self.RLS(x, y[0], xe)
+        self.wRLS(x, y[0], xe)
         
         for k in range(1, X.shape[0]):
             
@@ -2131,7 +2130,7 @@ class ePL(base):
             self.rules.append(len(self.parameters_list))
             
             # Update the consequent parameters of the fist rule
-            self.RLS(x, y[k], xe)
+            self.wRLS(x, y[k], xe)
             
             # Compute the normalized firing degree
             self.Lambda(x)
@@ -2228,7 +2227,7 @@ class ePL(base):
             self.rules.append(len(self.parameters_list))
             
             # Update the consequent parameters of the fist rule
-            self.RLS(x, y[k], xe)
+            self.wRLS(x, y[k], xe)
             
             # Compute the normalized firing degree
             self.Lambda(x)
@@ -2374,7 +2373,7 @@ class ePL(base):
             self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
     
 
-    def RLS(self, x, y, xe):
+    def wRLS(self, x, y, xe):
         for row in range(len(self.parameters_list)):
             self.parameters_list[row][1] -= (( self.parameters_list[row][1] @ xe @ xe.T @ self.parameters_list[row][1])/(1 + xe.T @ self.parameters_list[row][1] @ xe))
             self.parameters_list[row][2] += (self.parameters_list[row][1] @ xe * (y - xe.T @ self.parameters_list[row][2]))
@@ -2588,7 +2587,7 @@ class exTS(base):
         self.Lambda(x)
         
         # Update the consequent parameters of the fist rule
-        self.RLS(xe, y[0])
+        self.wRLS(xe, y[0])
         
         for k in range(1, X.shape[0]):
             
@@ -2648,7 +2647,7 @@ class exTS(base):
             self.Lambda(x)
             
             # Update consequent parameters
-            self.RLS(xe, y[k])
+            self.wRLS(xe, y[k])
             
             # Compute the number of rules at the current iteration
             self.rules.append(len(self.parameters_list))
@@ -2775,7 +2774,7 @@ class exTS(base):
             self.Lambda(x)
                 
             # Update consequent parameters
-            self.RLS(xe, y[k])
+            self.wRLS(xe, y[k])
             
             # Compute the number of rules at the current iteration
             self.rules.append(len(self.parameters_list))
@@ -2955,7 +2954,7 @@ class exTS(base):
                 # Update the parameters_list with the valid rules
                 self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
             
-    def RLS(self, xe, y):
+    def wRLS(self, xe, y):
         for i in range(len(self.parameters_list)):
             self.parameters_list[i][2] -= ((self.parameters_list[i][9] * self.parameters_list[i][2] @ xe @ xe.T @ self.parameters_list[i][2]) / (1 + self.parameters_list[i][9] * xe.T @ self.parameters_list[i][2] @ xe))
             self.parameters_list[i][3] += self.parameters_list[i][2] @ xe * self.parameters_list[i][9] * (y - xe.T @ self.parameters_list[i][3])
@@ -3164,7 +3163,7 @@ class Simpl_eTS(base):
         self.Lambda(x)
         
         # Update the consequent parameters of the fist rule
-        self.RLS(xe, y[0])
+        self.wRLS(xe, y[0])
         
         for k in range(1, X.shape[0]):
             
@@ -3224,7 +3223,7 @@ class Simpl_eTS(base):
             self.Lambda(x)
             
             # Update consequent parameters
-            self.RLS(xe, y[k])
+            self.wRLS(xe, y[k])
             
             # Compute the number of rules at the current iteration
             self.rules.append(len(self.parameters_list))
@@ -3350,7 +3349,7 @@ class Simpl_eTS(base):
             self.Lambda(x)
             
             # Update consequent parameters
-            self.RLS(xe, y[k])
+            self.wRLS(xe, y[k])
             
             # Compute the number of rules at the current iteration
             self.rules.append(len(self.parameters_list))
@@ -3519,7 +3518,7 @@ class Simpl_eTS(base):
                 self.parameters_list = [item for i, item in enumerate(self.parameters_list) if i not in remove]
             
             
-    def RLS(self, xe, y):
+    def wRLS(self, xe, y):
         for i in range(len(self.parameters_list)):
             self.parameters_list[i][2] -= ((self.parameters_list[i][8] * self.parameters_list[i][2] @ xe @ xe.T @ self.parameters_list[i][2]) / (1 + self.parameters_list[i][8] * xe.T @ self.parameters_list[i][2] @ xe))
             self.parameters_list[i][3] += self.parameters_list[i][2] @ xe * self.parameters_list[i][8] * (y - xe.T @ self.parameters_list[i][3])
@@ -3729,7 +3728,7 @@ class eTS(base):
         self.Lambda(x)
         
         # Update the consequent parameters of the fist rule
-        self.RLS(xe, y[0])
+        self.wRLS(xe, y[0])
         
         for k in range(1, X.shape[0]):
             
@@ -3781,7 +3780,7 @@ class eTS(base):
             self.Lambda(x)
             
             # Update consequent parameters
-            self.RLS(xe, y[k])
+            self.wRLS(xe, y[k])
             
             # Compute the number of rules at the current iteration
             self.rules.append(len(self.parameters_list))
@@ -3900,7 +3899,7 @@ class eTS(base):
             self.Lambda(x)
             
             # Update consequent parameters
-            self.RLS(xe, y[k])
+            self.wRLS(xe, y[k])
             
             # Compute the number of rules at the current iteration
             self.rules.append(len(self.parameters_list))
@@ -4047,7 +4046,7 @@ class eTS(base):
         for row in range(len(self.parameters_list)):
             self.parameters_list[row][8] = self.parameters_list[row][7] / tau_sum
       
-    def RLS(self, xe, y):
+    def wRLS(self, xe, y):
         for i in range(len(self.parameters_list)):
             self.parameters_list[i][2] -= ((self.parameters_list[i][8] * self.parameters_list[i][2] @ xe @ xe.T @ self.parameters_list[i][2]) / (1 + self.parameters_list[i][8] * xe.T @ self.parameters_list[i][2] @ xe))
             self.parameters_list[i][3] += self.parameters_list[i][2] @ xe * self.parameters_list[i][8] * (y - xe.T @ self.parameters_list[i][3])
