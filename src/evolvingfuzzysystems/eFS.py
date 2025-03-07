@@ -335,30 +335,26 @@ class ePL_KRLS_DISCO(base):
         # Be sure that X is with a correct shape
         X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
-        # Shape of X and y
-        X_shape = X.shape
-        y_shape = y.shape
-        
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
             y = np.array(y, ndmin=1)
             
         # Correct format X to 2d
-        if len(X_shape) == 1:
+        if len(X.shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y_shape) > 1 and y_shape[1] > 1:
+        if len(y.shape) > 1 and y.shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y_shape) > 1:
+        if len(y.shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X_shape[0] != y_shape[0]:
+        if X.shape[0] != y.shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
