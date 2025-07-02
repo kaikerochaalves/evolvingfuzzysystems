@@ -4,7 +4,18 @@
 Created on Wed Jan 29 10:20:31 2025
 
 @author: Kaike Sa Teles Rocha Alves
-@email: kaikerochaalves@outlook.com
+@email_1: kaikerochaalves@outlook.com
+@email_2: kaike.alves@estudante.ufjf.br
+
+As a Data Science Manager at PGE-PR and a Ph.D. in Computational Modeling
+at the Federal University of Juiz de Fora (UFJF), I specialize in artificial
+intelligence, focusing on the study, development, and application of fuzzy
+inference models. My academic journey includes a scholarship that allowed me
+to pursue a year of my Ph.D. at the University of Nottingham/UK, where I was
+a member of the LUCID (Laboratory for Uncertainty in Data and Decision Making)
+under the supervision of Professor Christian Wagner. My background in Industrial
+Engineering provides me with a holistic view of organizational processes,
+enabling me to propose efficient solutions and reduce waste.
 """
 
 # Importing libraries
@@ -49,24 +60,49 @@ class base():
 
 class ePL_KRLS_DISCO(base):
     
-    def __init__(self, alpha = 0.001, beta = 0.05, lambda1 = 0.0000001, sigma = 0.5, tau = 0.05, omega = 1, e_utility = 0.05):
+    def __init__(self, alpha = 0.001, beta = 0.05, tau = 0.05, sigma = 0.5, e_utility = 0.05, lambda1 = 0.0000001, omega = 1):
         
         # Call __init__ of the base class
         super().__init__()
+        
+        r"""
+        Hyperparameters:
 
+        alpha: float, possible values are in the interval [0,1], default=0.001
+        This parameter controls the learning rate for updating the rule centers. A higher value means faster adaptation of rule centers to new data.
+    
+        beta: float, possible values are in the interval [0,1], default=0.05
+        This parameter determines the adaptation rate of the arousal index, which influences the creation of new rules.
+    
+        tau: float, possible values are in the interval [0,1], default=0.05
+        This is the threshold for the arousal index. If the minimum arousal index among all existing rules exceeds tau, a new rule is considered for creation.
+    
+        sigma: float, must be a positive float, default=0.5
+        This parameter defines the width of the Gaussian membership functions for the antecedent part of the rules. A smaller sigma leads to narrower, more specific fuzzy sets, while a larger sigma creates broader, more general fuzzy sets.
+    
+        e_utility: float, possible values are in the interval [0,1], default=0.05
+        This is the utility threshold for pruning rules. Rules whose utility falls below this value are considered for removal, aiming to maintain a parsimonious model.
+        
+        lambda1: float, possible values are in the interval [0,1], default=0.0000001
+        This acts as a regularization parameter in the KRLS algorithm. It helps prevent overfitting and improves the stability of the inverse matrix calculation.
+        
+        omega: int, must be a positive integer, default=1
+        This parameter is used in the initialization of the Q matrix within the KRLS algorithm. It can be seen as an initial regularization term for the covariance matrix estimate.
+    
+        """
         
         if not (0 <= alpha <= 1):
             raise ValueError("alpha must be a float between 0 and 1.")
         if not (0 <= beta <= 1):
             raise ValueError("beta must be a float between 0 and 1.")
+        if not (sigma > 0):
+            raise ValueError("sigma must be a positive float.")
         if not (0 <= lambda1 <= 1):
             raise ValueError("lambda1 must be a float between 0 and 1.")
         if not (0 <= e_utility <= 1):
             raise ValueError("e_utility must be a float between 0 and 1.")
         if not (0 <= tau <= 1):  # tau can be NaN or in [0, 1]
             raise ValueError("tau must be a float between 0 and 1, or NaN.")
-        if not (sigma > 0):
-            raise ValueError("sigma must be a positive float.")
         if not (isinstance(omega, int) and omega > 0):
             raise ValueError("omega must be a positive integer.")
             
@@ -335,26 +371,30 @@ class ePL_KRLS_DISCO(base):
         # Be sure that X is with a correct shape
         X = X.reshape(-1,self.parameters.loc[self.parameters.index[0],'Center'].shape[0])
         
+        # Shape of X and y
+        X_shape = X.shape
+        y_shape = y.shape
+        
         # Check the format of y
         if not isinstance(y, (np.ndarray)):
             y = np.array(y, ndmin=1)
             
         # Correct format X to 2d
-        if len(X.shape) == 1:
+        if len(X_shape) == 1:
             X = X.reshape(-1,1)
         
         # Check wheather y is 1d
-        if len(y.shape) > 1 and y.shape[1] > 1:
+        if len(y_shape) > 1 and y_shape[1] > 1:
             raise TypeError(
                 "This algorithm does not support multiple outputs. "
                 "Please, give only single outputs instead."
             )
         
-        if len(y.shape) > 1:
+        if len(y_shape) > 1:
             y = y.ravel()
         
         # Check wheather y is 1d
-        if X.shape[0] != y.shape[0]:
+        if X_shape[0] != y_shape[0]:
             raise TypeError(
                 "The number of samples of X are not compatible with the number of samples in y. "
             )
@@ -698,37 +738,88 @@ class ePL_KRLS_DISCO(base):
             
 class ePL_plus(base):
     
-    def __init__(self, alpha = 0.001, beta = 0.1, lambda1 = 0.35, tau = None, omega = 1000, sigma = 0.25, e_utility = 0.05, pi = 0.5):
+    def __init__(self, alpha = 0.001, beta = 0.1, tau = None, sigma = 0.25, e_utility = 0.05, pi = 0.5, lambda1 = 0.35, omega = 1000):
         
         # Call __init__ of the base class
         super().__init__()
+        
+        r"""
+        Hyperparameters:
+
+        alpha: float, possible values are in the interval [0,1], default = 0.001
+        This parameter controls the learning rate for updating the rule centers. 
+        A smaller alpha means slower adaptation of rule centers to new data, 
+        while a larger alpha results in faster adaptation.
+    
+        beta: float, possible values are in the interval [0,1], default = 0.1
+        This parameter controls the learning rate for updating the arousal index. 
+        The arousal index helps determine when a new rule should be created. 
+        A higher beta makes the system more responsive to new patterns, 
+        potentially leading to more rules.
+        
+        tau: float, possible values are in the interval [0,1] or None, 
+        default = None (defaults to beta)
+        This parameter serves as a threshold for the arousal index to 
+        determine whether a new rule needs to be created. If the minimum 
+        arousal index among existing rules exceeds tau, a new rule is considered.
+        If tau is None, it automatically takes the value of beta.
+        
+        sigma: float, possible values are in the interval [0,1], default = 0.25
+        This parameter represents the initial radius or spread for the 
+        Gaussian membership functions of new rules. It influences how broadly 
+        a new rule covers the input space.
+    
+        e_utility: float, possible values are in the interval [0,1], default = 0.05
+        This parameter is a threshold for the utility measure of a rule. R
+        ules whose utility (which relates to their contribution over time) 
+        falls below this threshold are considered for removal, helping to prune
+        redundant or inactive rules.
+    
+        pi: float, possible values are in the interval [0,1], default = 0.5
+        This parameter is a forgetting factor for updating the rule's radius (sigma). 
+        It controls how much influence new observations have on adapting the spread 
+        of a rule, balancing between current data and historical information.
+        
+        lambda1: float, possible values are in the interval [0,1], default = 0.35
+        This parameter is a threshold for the similarity index. If the 
+        compatibility between two rules (or a new data point and an existing rule) 
+        is greater than or equal to lambda1, it can trigger rule merging or 
+        influence how existing rules are updated.
+    
+        omega: int, must be a positive integer, default = 1000
+        This parameter is used to initialize the P matrix (covariance matrix inverse) 
+        in the weighted Recursive Least Squares (wRLS) algorithm. A larger 
+        omega generally indicates less confidence in initial parameters,
+        allowing for faster early adaptation.
+        
+        """
         
         if not (0 <= alpha <= 1):
             raise ValueError("alpha must be a float between 0 and 1.")
         if not (0 <= beta <= 1):
             raise ValueError("beta must be a float between 0 and 1.")
-        if not (0 <= lambda1 <= 1):
-            raise ValueError("lambda1 must be a float between 0 and 1.")
         if not (tau is None or (isinstance(tau, float) and (0 <= tau <= 1))):  # tau can be NaN or in [0, 1]
             raise ValueError("tau must be a float between 0 and 1, or None.")
-        if not (isinstance(omega, int) and omega > 0):
-            raise ValueError("omega must be a positive integer.")
-        if not (0 <= e_utility <= 1):
-            raise ValueError("e_utility must be a float between 0 and 1.")
         if not (0 <= sigma <= 1):
             raise ValueError("sigma must be a float between 0 and 1.")
+        if not (0 <= e_utility <= 1):
+            raise ValueError("e_utility must be a float between 0 and 1.")
         if not (0 <= pi <= 1):
             raise ValueError("pi must be a float between 0 and 1.")
-            
+        if not (0 <= lambda1 <= 1):
+            raise ValueError("lambda1 must be a float between 0 and 1.")
+        if not (isinstance(omega, int) and omega > 0):
+            raise ValueError("omega must be a positive integer.")
+                    
         # Hyperparameters
         self.alpha = alpha
         self.beta = beta
-        self.lambda1 = lambda1
         self.tau = beta if tau is None else tau
-        self.omega = omega
         self.sigma = sigma
         self.e_utility = e_utility
         self.pi = pi
+        self.lambda1 = lambda1
+        self.omega = omega
         
         # Monitoring if some rule was excluded
         self.ExcludedRule = 0
@@ -737,12 +828,12 @@ class ePL_plus(base):
         return {
             'alpha': self.alpha,
             'beta': self.beta,
-            'lambda1': self.lambda1,
             'tau': self.tau,
-            'omega': self.omega,
-            'sigma': self.sigma,
             'e_utility': self.e_utility,
             'pi': self.pi,
+            'sigma': self.sigma,
+            'lambda1': self.lambda1,
+            'omega': self.omega,
         }
 
     def set_params(self, **params):
@@ -1258,27 +1349,61 @@ class ePL_plus(base):
             
 class eMG(base):
     
-    def __init__(self, alpha = 0.01, lambda1 = 0.1, w = 10, sigma = 0.05, omega = 10^2):
+    def __init__(self, alpha = 0.01, w = 10, sigma = 0.05, lambda1 = 0.1, omega = 10^2):
         
         # Call __init__ of the base class
         super().__init__()
         
+        r"""
+        Hyperparameters:
+        
+        alpha: float, possible values are in the interval [0,1], default = 0.01
+        This parameter controls the learning rate for updating the rule centers
+        and covariance matrices. A smaller alpha means slower adaptation, 
+        while a larger alpha leads to faster changes in rule parameters.
+        
+        w: int, must be an integer greater than 0, default = 10
+        This parameter defines the window size for computing the arousal index.
+        The arousal index, which influences rule creation, is based on the recent 
+        history of data points falling within or outside the confidence region 
+        of a rule, over this w number of samples.
+        
+        sigma: float, must be a positive float, default = 0.05
+        This parameter represents the initial diagonal value for the covariance 
+        matrix (Sigma) of newly created rules. It essentially defines the initial 
+        spread of a new Gaussian rule in each dimension.
+        
+        lambda1: float, possible values are in the interval [0,1], default = 0.1
+        This parameter defines a significance level for the chi-squared test used 
+        to determine the thresholds for rule creation and merging (Tp). 
+        It influences how "novel" a data point needs to be to potentially 
+        trigger a new rule or how "similar" two rules need to be to be merged.
+        
+        omega: int, must be a positive integer, default = 102 (100)
+        This parameter is used to initialize the Q matrix 
+        (inverse of the covariance matrix) in the Recursive Least Squares (RLS) 
+        algorithm, which estimates the consequent parameters of each rule. 
+        A larger omega implies a larger initial uncertainty in the consequent 
+        parameters, allowing for faster early adjustments.
+        
+        """        
+        
         if not (0 <= alpha <= 1):
             raise ValueError("alpha must be a float between 0 and 1.")
-        if not (0 <= lambda1 <= 1):
-            raise ValueError("lambda1 must be a float between 0 and 1.")
         if not (isinstance(w, int) and w > 0):  # w can be NaN or in [0, 1]
             raise ValueError("w must be an integer greater than 0.")
         if not (sigma > 0):
             raise ValueError("sigma must be a positive float.")
+        if not (0 <= lambda1 <= 1):
+            raise ValueError("lambda1 must be a float between 0 and 1.")
         if not (isinstance(omega, int) and omega > 0):
             raise ValueError("omega must be a positive integer.")
             
         # Hyperparameters
         self.alpha = alpha
-        self.lambda1 = lambda1
         self.w = w
         self.sigma = sigma
+        self.lambda1 = lambda1
         self.omega = omega
         
         # # Model's parameters
@@ -1293,8 +1418,8 @@ class eMG(base):
     def get_params(self, deep=True):
         return {
             'alpha': self.alpha,
-            'lambda1': self.lambda1,
             'w': self.w,
+            'lambda1': self.lambda1,
             'sigma': self.sigma,
             'omega': self.omega,
         }
@@ -1887,40 +2012,78 @@ class eMG(base):
 
 class ePL(base):
     
-    def __init__(self, alpha = 0.001, beta = 0.5, lambda1 = 0.35, tau = None, s = 1000, sigma = 0.25):
+    def __init__(self, alpha = 0.001, beta = 0.5, tau = None, lambda1 = 0.35, sigma = 0.25, omega = 1000):
         
         # Call __init__ of the base class
         super().__init__()
+        
+        r"""
+        Hyperparameters:
+
+        alpha: float, possible values are in the interval [0,1], default = 0.001
+        This parameter controls the learning rate for updating the rule centers. 
+        A smaller alpha means slower adaptation, while a larger alpha leads to 
+        faster changes in rule centers.
+        
+        beta: float, possible values are in the interval [0,1], default = 0.5
+        This parameter controls the learning rate for updating the arousal index. 
+        The arousal index influences the creation of new rules; a higher beta 
+        makes the system more sensitive to new patterns and potentially creates 
+        new rules more readily.
+        
+        tau: float, possible values are in the interval [0,1] or None, default = None (defaults to beta)
+        This parameter serves as a threshold for the arousal index. 
+        If the minimum arousal index among existing rules exceeds tau, 
+        a new rule is considered for creation. If tau is None, it automatically 
+        takes the value of beta.
+        
+        lambda1: float, possible values are in the interval [0,1], default = 0.35
+        This parameter is a threshold for the similarity index. If the compatibility 
+        between two rules (or a new data point and an existing rule) is greater 
+        than or equal to lambda1, it can trigger rule merging.
+        
+        sigma: float, must be a positive float, default = 0.25
+        This is the fixed bandwidth parameter for the Gaussian membership functions. 
+        It determines the spread of the Gaussian functions; a smaller sigma leads 
+        to narrower, more localized rules, while a larger sigma creates broader, 
+        more generalized rules.
+        
+        omega: int, must be a positive integer, default = 1000
+        This parameter is used to initialize the P matrix (covariance matrix inverse) 
+        in the weighted Recursive Least Squares (wRLS) algorithm. A larger s generally 
+        indicates less confidence in initial parameters, allowing for faster early 
+        adaptation.
+        """
         
         if not (0 <= alpha <= 1):
             raise ValueError("alpha must be a float between 0 and 1.")
         if not (0 <= beta <= 1):
             raise ValueError("beta must be a float between 0 and 1.")
-        if not (0 <= lambda1 <= 1):
-            raise ValueError("lambda1 must be a float between 0 and 1.")
         if not (tau is None or (isinstance(tau, float) and (0 <= tau <= 1))):  # tau can be NaN or in [0, 1]
             raise ValueError("tau must be a float between 0 and 1, or None.")
-        if not (isinstance(s, int) and s > 0):
-            raise ValueError("s must be a positive integer.")
+        if not (0 <= lambda1 <= 1):
+            raise ValueError("lambda1 must be a float between 0 and 1.")
         if not (sigma > 0):
             raise ValueError("sigma must be a positive float.")
+        if not (isinstance(omega, int) and omega > 0):
+            raise ValueError("omega must be a positive integer.")
             
         # Hyperparameters
         self.alpha = alpha
         self.beta = beta
-        self.lambda1 = lambda1
         self.tau = beta if tau is None else tau
-        self.s = s
+        self.lambda1 = lambda1
         self.sigma = sigma
+        self.omega = omega
         
     def get_params(self, deep=True):
         return {
             'alpha': self.alpha,
             'beta': self.beta,
-            'lambda1': self.lambda1,
             'tau': self.tau,
-            's': self.s,
+            'lambda1': self.lambda1,
             'sigma': self.sigma,
+            'omega': self.omega,
         }
 
     def set_params(self, **params):
@@ -2282,12 +2445,12 @@ class ePL(base):
         if isFirst:
             
             # List of parameters
-            self.parameters_list.append([x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., self.k, 1., 1., 1.])
+            self.parameters_list.append([x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., self.k, 1., 1., 1.])
         
         else:
             
             # List of parameters
-            self.parameters_list.append([x, self.s * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., self.k, 1., 1., 1.])
+            self.parameters_list.append([x, self.omega * np.eye(x.shape[0] + 1), np.zeros((x.shape[0] + 1, 1)), 0., 1., self.k, 1., 1., 1.])
     
     def CompatibilityMeasure(self, x, i):
         
@@ -2377,25 +2540,52 @@ class ePL(base):
 
 class exTS(base):
     
-    def __init__(self, omega = 1000, mu = 1/3, epsilon = 0.01, rho = 1/2):
+    def __init__(self, rho = 1/2, mu = 1/3, epsilon = 0.01, omega = 1000):
         
         # Call __init__ of the base class
         super().__init__()
         
-        if not (isinstance(omega, int) and omega > 0):
-            raise ValueError("omega must be a positive integer.")
+        r"""
+        Hyperparameters:
+
+        rho: float, possible values are in the interval [0,1], default = 1/2 (0.5)
+        This parameter is a forgetting factor for updating the rule's radius (sigma). 
+        It controls how much influence new observations have on adapting the spread 
+        of a rule, balancing between current data and historical information.
+    
+        mu: float or int, must be greater than 0, default = 1/3
+        This parameter acts as a threshold for the membership degree (mu) 
+        of a data point to a rule. If all membership degrees of existing rules 
+        are below mu, it indicates a novel data region, potentially leading to 
+        the creation of a new rule.
+    
+        epsilon: float, possible values are in the interval [0,1], default = 0.01
+        This parameter is a threshold for rule removal based on their relative number 
+        of observations. Rules whose proportion of total observations falls 
+        below epsilon are considered for pruning, aiming to remove underutilized rules.
+    
+        omega: int, must be a positive integer, default = 1000
+        This parameter is used to initialize the C matrix 
+        (covariance matrix inverse) in the weighted Recursive Least Squares (wRLS) 
+        algorithm, which estimates the consequent parameters of each rule. 
+        A larger omega implies a larger initial uncertainty in the consequent parameters, 
+        allowing for faster early adjustments.
+        """
+        
+        if not (0 <= rho <= 1):
+            raise ValueError("rho must be a float between 0 and 1.")
         if not (isinstance(mu, (float,int)) and mu > 0):
             raise ValueError("mu must be greater than 0.")
         if not (0 <= epsilon <= 1):
             raise ValueError("epsilon must be a float between 0 and 1.")
-        if not (0 <= rho <= 1):
-            raise ValueError("rho must be a float between 0 and 1.")
-            
+        if not (isinstance(omega, int) and omega > 0):
+            raise ValueError("omega must be a positive integer.")
+             
         # Hyperparameters
-        self.omega = omega
+        self.rho = rho
         self.mu = mu
         self.epsilon = epsilon
-        self.rho = rho
+        self.omega = omega
         
         # Model's parameters
         self.parameters = pd.DataFrame(columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Potential', 'TimeCreation', 'NumPoints', 'mu', 'Tau', 'Lambda', 'r', 'sigma', 'increment_Center_x'])
@@ -2409,10 +2599,10 @@ class exTS(base):
     
     def get_params(self, deep=True):
         return {
-            'omega': self.omega,
+            'rho': self.rho,
             'mu': self.mu,
             'epsilon': self.epsilon,
-            'rho': self.rho,
+            'omega': self.omega,
         }
 
     def set_params(self, **params):
@@ -2957,20 +3147,46 @@ class exTS(base):
     
 class Simpl_eTS(base):
     
-    def __init__(self, omega = 1000, r = 0.1, epsilon = 0.01):
+    def __init__(self, r = 0.1, epsilon = 0.01, omega = 1000):
         
         # Call __init__ of the base class
         super().__init__()
         
-        if not (isinstance(omega, int) and omega > 0):
-            raise ValueError("omega must be a positive integer.")
+        r"""
+        Hyperparameters:
+
+        r: float or int, must be greater than 0, default = 0.1
+        This parameter defines the radius for the Cauchy membership functions. 
+        It controls the spread of the membership functions; a smaller r leads 
+        to more localized rules, while a larger r creates broader rules. 
+        It is also used as a threshold for determining if a data point is 
+        close enough to an existing rule to update it.
+    
+        epsilon: float, possible values are in the interval [0,1], default = 0.01
+        This parameter is a threshold for rule removal based on their relative number 
+        of observations. Rules whose proportion of total observations falls below 
+        epsilon are considered for pruning, aiming to remove underutilized rules.
+        
+        omega: int, must be a positive integer, default = 1000
+        This parameter is used to initialize the C matrix (covariance matrix inverse) 
+        in the weighted Recursive Least Squares (wRLS) algorithm, which estimates 
+        the consequent parameters of each rule. A larger omega implies a larger 
+        initial uncertainty in the consequent parameters, allowing for faster early 
+        adjustments.
+    
+        """
+        
         if not (isinstance(r, (float,int)) and r > 0):
             raise ValueError("r must be greater than 0.")
+        if not (isinstance(epsilon, (float,int)) and epsilon > 0):
+            raise ValueError("epsilon must be greater than 0.")
+        if not (isinstance(omega, int) and omega > 0):
+            raise ValueError("omega must be a positive integer.")
         
         # Hyperparameters
-        self.omega = omega
         self.r = r
         self.epsilon = epsilon
+        self.omega = omega
         
         # Model's parameters
         self.parameters = pd.DataFrame(columns = ['Center_Z', 'Center_X', 'C', 'Theta', 'Scatter', 'TimeCreation', 'NumPoints', 'Tau', 'Lambda'])
@@ -3522,19 +3738,37 @@ class Simpl_eTS(base):
 
 class eTS(base):
     
-    def __init__(self, omega = 1000, r = 0.1):
+    def __init__(self, r = 0.1, omega = 1000):
         
         # Call __init__ of the base class
         super().__init__()
         
-        if not (isinstance(omega, int) and omega > 0):
-            raise ValueError("omega must be a positive integer.")
+        r"""
+        Hyperparameters:
+        
+        r: float or int, must be greater than 0, default = 0.1
+        This parameter defines the radius for the Gaussian membership functions. 
+        It controls the spread of the membership functions; a smaller r leads 
+        to more localized rules, while a larger r creates broader rules. 
+        It is also used as a threshold in the rule creation logic.
+        
+        omega: int, must be a positive integer, default = 1000
+        This parameter is used to initialize the C matrix 
+        (covariance matrix inverse) in the weighted Recursive Least Squares 
+        (wRLS) algorithm, which estimates the consequent parameters of each rule. 
+        A larger omega implies a larger initial uncertainty in the consequent parameters,
+        allowing for faster early adjustments.
+    
+        """
+        
         if not (isinstance(r, (float,int)) and r > 0):
             raise ValueError("r must be greater than 0.")
-            
+        if not (isinstance(omega, int) and omega > 0):
+            raise ValueError("omega must be a positive integer.")
+                    
         # Hyperparameters
-        self.omega = omega
         self.r = r
+        self.omega = omega
         self.alpha = 4/(self.r**2)
         
         # Parameters

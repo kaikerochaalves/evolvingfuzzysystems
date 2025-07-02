@@ -16,4 +16,4 @@ from .eFS import ePL_KRLS_DISCO, ePL_plus, eMG, ePL, exTS, Simpl_eTS, eTS
 
 __all__ = ["ePL_KRLS_DISCO", "ePL_plus", "eMG", "ePL", "exTS", "Simpl_eTS", "eTS"]
 
-__version__ = "0.0.1"  # Update version as needed
+__version__ = "0.1.1"  # Update version as needed
