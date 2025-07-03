@@ -7,7 +7,7 @@ packages = ["src/evolvingfuzzysystems"]
 
 [project]
 name = "evolvingfuzzysystems"
-version = "0.1.1"
+version = "0.1.3"
 authors = [
     { name = "Kaike Sa Teles Rocha Alves", email = "kaikerochaalves@outlook.com" }
 ]

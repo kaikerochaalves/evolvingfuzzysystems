@@ -210,7 +210,7 @@ Hyperparameters:
     It influences how "novel" a data point needs to be to potentially 
     trigger a new rule or how "similar" two rules need to be to be merged.
 
-    omega: int, must be a positive integer, default = 102 (100)
+    omega: int, must be a positive integer, default = 100
     This parameter is used to initialize the Q matrix 
     (inverse of the covariance matrix) in the Recursive Least Squares (RLS) 
     algorithm, which estimates the consequent parameters of each rule. 
@@ -442,11 +442,11 @@ These last four function that plots graphics accepts extra arguments:
 
 You can learn more about the ePL-KRLS-DISCO and eFSs in the paper: https://doi.org/10.1016/j.asoc.2021.107764.
 
-## Code of Conduct
+Code of Conduct
 
 evolvingfuzzysystems is a library developed by Kaike Alves. Please read the Code of Conduct for guidance.
 
-## Call for Contributions
+Call for Contributions
 
 The project welcomes your expertise and enthusiasm!
 

@@ -9,11 +9,12 @@ Created on Wed Jan 29 10:20:31 2025
 
 As a Data Science Manager at PGE-PR and a Ph.D. in Computational Modeling
 at the Federal University of Juiz de Fora (UFJF), I specialize in artificial
-intelligence, focusing on the study, development, and application of fuzzy
-inference models. My academic journey includes a scholarship that allowed me
-to pursue a year of my Ph.D. at the University of Nottingham/UK, where I was
-a member of the LUCID (Laboratory for Uncertainty in Data and Decision Making)
-under the supervision of Professor Christian Wagner. My background in Industrial
+intelligence, focusing on the study, development, and application of machine learning
+models, under the supervision of Prof. Eduardo Pestana de Aguiar. My academic journey 
+includes a scholarship that allowed me to pursue a year of my Ph.D. at the 
+University of Nottingham/UK, where I was a member of the LUCID
+(Laboratory for Uncertainty in Data and Decision Making) under the 
+supervision of Professor Christian Wagner. My background in Industrial
 Engineering provides me with a holistic view of organizational processes,
 enabling me to propose efficient solutions and reduce waste.
 """
@@ -54,6 +55,9 @@ class base():
     
     def n_rules(self):
         return self.rules[-1]
+    
+    def is_numeric_and_finite(self, array):
+        return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
     
     def output_training(self):
         return self.y_pred_training
@@ -136,9 +140,6 @@ class ePL_KRLS_DISCO(base):
         for key, value in params.items():
             setattr(self, key, value)
         return self
-    
-    def is_numeric_and_finite(self, array):
-        return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
     
     def show_rules(self):
         rules = []
@@ -364,7 +365,7 @@ class ePL_KRLS_DISCO(base):
             self.eTil.append(0.8 * self.eTil[-1] + abs(Output - y[k]))
             
         # Save the rules to a dataframe
-        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'dictionary', 'nu', 'P', 'Q', 'Theta','arousal_index', 'utility', 'sum_lambda', 'time_creation', 'CompatibilityMeasure', 'old_Center', 'tau', 'lambda', 'lambda'])
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'dictionary', 'nu', 'P', 'Q', 'Theta','arousal_index', 'utility', 'sum_lambda', 'num_observations', 'time_creation', 'CompatibilityMeasure', 'old_Center', 'tau', 'lambda'])
     
     def evolve(self, X, y):
         
@@ -487,7 +488,7 @@ class ePL_KRLS_DISCO(base):
             self.eTil.append(0.8 * self.eTil[-1] + abs(Output - y[k]))
             
         # Save the rules to a dataframe
-        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'dictionary', 'nu', 'P', 'Q', 'Theta','arousal_index', 'utility', 'sum_lambda', 'time_creation', 'CompatibilityMeasure', 'old_Center', 'tau', 'lambda', 'lambda'])
+        self.parameters = pd.DataFrame(self.parameters_list, columns=['Center', 'dictionary', 'nu', 'P', 'Q', 'Theta','arousal_index', 'utility', 'sum_lambda', 'num_observations', 'time_creation', 'CompatibilityMeasure', 'old_Center', 'tau', 'lambda'])
             
     def predict(self, X):
                 
@@ -840,9 +841,6 @@ class ePL_plus(base):
         for key, value in params.items():
             setattr(self, key, value)
         return self
-    
-    def is_numeric_and_finite(self, array):
-        return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
     
     def show_rules(self):
         rules = []
@@ -1379,7 +1377,7 @@ class eMG(base):
         It influences how "novel" a data point needs to be to potentially 
         trigger a new rule or how "similar" two rules need to be to be merged.
         
-        omega: int, must be a positive integer, default = 102 (100)
+        omega: int, must be a positive integer, default = 100
         This parameter is used to initialize the Q matrix 
         (inverse of the covariance matrix) in the Recursive Least Squares (RLS) 
         algorithm, which estimates the consequent parameters of each rule. 
@@ -1428,9 +1426,6 @@ class eMG(base):
         for key, value in params.items():
             setattr(self, key, value)
         return self
-    
-    def is_numeric_and_finite(self, array):
-        return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
     
     def show_rules(self):
         rules = []
@@ -2091,9 +2086,6 @@ class ePL(base):
             setattr(self, key, value)
         return self
     
-    def is_numeric_and_finite(self, array):
-        return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
-    
     def show_rules(self):
         rules = []
         for i in self.parameters.index:
@@ -2609,9 +2601,6 @@ class exTS(base):
         for key, value in params.items():
             setattr(self, key, value)
         return self
-    
-    def is_numeric_and_finite(self, array):
-        return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
     
     def show_rules(self):
         rules = []
@@ -3210,9 +3199,6 @@ class Simpl_eTS(base):
             setattr(self, key, value)
         return self
     
-    def is_numeric_and_finite(self, array):
-        return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
-    
     def show_rules(self):
         rules = []
         for i in self.parameters.index:
@@ -3792,9 +3778,6 @@ class eTS(base):
         for key, value in params.items():
             setattr(self, key, value)
         return self
-    
-    def is_numeric_and_finite(self, array):
-        return np.isfinite(array).all() and np.issubdtype(np.array(array).dtype, np.number)
     
     def show_rules(self):
         rules = []
